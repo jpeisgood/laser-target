@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="210.0mm" height="297.0mm" viewBox="0 0 210.0 297.0">
+<rect width="100%" height="100%" fill="#fff"/>
+<g font-family="Barlow Condensed, IBM Plex Sans KR, Arial Narrow, Arial, sans-serif">
+<text x="14" y="16" font-size="6.2" font-weight="700" fill="#111">LASER RUN 연습용 큰 표적</text>
+<text x="14" y="22.5" font-size="3.6" fill="#555">처음 배우는 학생·짧은 거리용</text>
+<text x="196" y="16" font-size="3.6" fill="#555" text-anchor="end">검정 원 = 명중 (7점 이상)</text>
+<text x="196" y="22.5" font-size="3.6" fill="#555" text-anchor="end">검정 원 지름 100 mm</text>
+<circle cx="105.0" cy="140.0" r="87.500" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
+<circle cx="105.0" cy="140.0" r="75.000" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
+<circle cx="105.0" cy="140.0" r="62.500" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
+<circle cx="105.0" cy="140.0" r="50.000" fill="#000"/>
+<circle cx="105.0" cy="140.0" r="37.500" fill="none" stroke="#3c3c3c" stroke-width="0.35"/>
+<circle cx="105.0" cy="140.0" r="25.000" fill="none" stroke="#3c3c3c" stroke-width="0.35"/>
+<circle cx="105.0" cy="140.0" r="12.500" fill="none" stroke="#3c3c3c" stroke-width="0.35"/>
+<text x="105.00" y="60.22" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">4</text>
+<text x="105.00" y="222.72" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">4</text>
+<text x="23.75" y="141.47" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">4</text>
+<text x="186.25" y="141.47" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">4</text>
+<text x="105.00" y="72.72" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">5</text>
+<text x="105.00" y="210.22" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">5</text>
+<text x="36.25" y="141.47" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">5</text>
+<text x="173.75" y="141.47" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">5</text>
+<text x="105.00" y="85.22" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">6</text>
+<text x="105.00" y="197.72" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">6</text>
+<text x="48.75" y="141.47" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">6</text>
+<text x="161.25" y="141.47" font-size="4.20" font-weight="600" fill="#2a2a2a" text-anchor="middle">6</text>
+<text x="105.00" y="97.72" font-size="4.20" font-weight="600" fill="#4d4d4d" text-anchor="middle">7</text>
+<text x="105.00" y="185.22" font-size="4.20" font-weight="600" fill="#4d4d4d" text-anchor="middle">7</text>
+<text x="61.25" y="141.47" font-size="4.20" font-weight="600" fill="#4d4d4d" text-anchor="middle">7</text>
+<text x="148.75" y="141.47" font-size="4.20" font-weight="600" fill="#4d4d4d" text-anchor="middle">7</text>
+<text x="105.00" y="110.22" font-size="4.20" font-weight="600" fill="#4d4d4d" text-anchor="middle">8</text>
+<text x="105.00" y="172.72" font-size="4.20" font-weight="600" fill="#4d4d4d" text-anchor="middle">8</text>
+<text x="73.75" y="141.47" font-size="4.20" font-weight="600" fill="#4d4d4d" text-anchor="middle">8</text>
+<text x="136.25" y="141.47" font-size="4.20" font-weight="600" fill="#4d4d4d" text-anchor="middle">8</text>
+<line x1="14" y1="262.0" x2="64" y2="262.0" stroke="#111" stroke-width="0.5"/>
+<line x1="14" y1="260.0" x2="14" y2="264.0" stroke="#111" stroke-width="0.5"/>
+<line x1="39" y1="260.0" x2="39" y2="264.0" stroke="#111" stroke-width="0.5"/>
+<line x1="64" y1="260.0" x2="64" y2="264.0" stroke="#111" stroke-width="0.5"/>
+<text x="14" y="269.0" font-size="3.4" fill="#333">50 mm · 인쇄 후 자로 재서 같은지 확인</text>
+<text x="196" y="263.0" font-size="3.4" fill="#333" text-anchor="end">인쇄: 실제 크기(100%) · 무광 용지</text>
+<text x="196" y="269.0" font-size="3.4" fill="#333" text-anchor="end">종이가 휘지 않게 판에 붙여 주세요</text>
+<text x="14" y="282" font-size="3" fill="#888">레이저런 표적 · 카메라 인식용 · 검정 원 안의 선은 일부러 회색으로 인쇄합니다</text>
+</g></svg>

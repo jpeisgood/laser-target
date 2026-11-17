@@ -1,0 +1,1930 @@
+<title>레이저런 표적</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="태블릿 카메라로 종이 과녁의 레이저 명중을 인식하는 레이저런 사격 표적">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+:root {
+  /* Layout: a range display. Five LED sockets ride across the middle of the screen, the big readouts sit under
+     them, and the camera inset + shot map sit at the foot. Setup is a full-screen sheet: live camera on the left,
+     numbered steps on the right (one column on phones). One deliberate dark look: it is read from 10 m away. */
+  --bg: #0e1412;
+  --surface: #151d1a;
+  --surface-2: #1e2824;
+  --line: #2c3833;
+  --ink: #e8eee9;
+  --ink-2: #a6b3ab;
+  --ink-3: #74837b;
+  --hit: #3dff7e;
+  --hit-mid: #19c95a;
+  --hit-deep: #0c6b33;
+  --hit-ink: #04230f;
+  --hit-glow: rgba(61, 255, 126, 0.55);
+  --hit-haze: rgba(61, 255, 126, 0.2);
+  --miss: #ff5d4f;
+  --miss-deep: #3b1311;
+  --amber: #ffb347;
+  --amber-ink: #2a1800;
+  --ply: #d4b07a;
+  --ply-ink: #3d2b12;
+  --paper: #dfe4df;
+  --paper-line: #56605a;
+  --led-off: #19221f;
+  --led-rim: #0a0f0d;
+  --shade: rgba(4, 7, 6, 0.74);
+  --font-display: "Barlow Condensed", "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --led-size: min(15.4vw, 30vh, 210px);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-ui); font-size: 15px; line-height: 1.5;
+  overflow: hidden; -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased;
+}
+[hidden] { display: none !important; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+/* ---------- buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 8px 16px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
+  font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; text-decoration: none;
+}
+.btn:hover { border-color: var(--ink-3); }
+.btn:active { transform: translateY(1px); }
+.btn-primary { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+.btn-primary:hover { border-color: var(--amber); filter: brightness(1.07); }
+.btn-quiet { background: transparent; }
+.btn[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
+
+/* ---------- scoreboard ---------- */
+.board {
+  position: relative; height: 100%;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: clamp(8px, 2.2vh, 22px);
+  padding-block: clamp(10px, 2vh, 20px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: radial-gradient(110% 75% at 50% 40%, var(--surface) 0%, var(--bg) 72%);
+  overflow: hidden;
+}
+.topbar { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.plate {
+  display: inline-flex; align-items: baseline; gap: 6px; flex: none;
+  padding: 1px 12px 2px; border-radius: 6px;
+  background: var(--ply); color: var(--ply-ink);
+  font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: 0.04em;
+}
+.plate b { font-size: 26px; line-height: 1.1; }
+.brand {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-display); font-weight: 600; font-size: 19px; letter-spacing: 0.1em; color: var(--ink-2);
+}
+.topbar .spacer { flex: 1; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px; border-radius: 999px;
+  background: var(--surface-2); color: var(--ink-2); font-size: 13px; white-space: nowrap;
+}
+.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.chip[data-state="ok"] i { background: var(--hit); box-shadow: 0 0 8px var(--hit-glow); }
+.chip[data-state="warn"] i { background: var(--amber); }
+.chip[data-state="bad"] i { background: var(--miss); }
+.chip[data-state="demo"] { background: var(--ply); color: var(--ply-ink); }
+.chip[data-state="demo"] i { background: var(--ply-ink); }
+.topbar .btn { min-height: 40px; padding: 6px 14px; }
+
+.rail { display: grid; place-content: center; justify-items: center; gap: calc(var(--led-size) * 0.32); min-height: 0; }
+.leds { display: flex; align-items: center; justify-content: center; gap: calc(var(--led-size) * 0.18); }
+.led {
+  position: relative; width: var(--led-size); height: var(--led-size); border-radius: 50%;
+  background: radial-gradient(circle at 50% 38%, var(--surface-2) 0%, var(--led-off) 55%, var(--led-rim) 100%);
+  box-shadow:
+    inset 0 calc(var(--led-size) * 0.04) calc(var(--led-size) * 0.1) var(--led-rim),
+    0 0 0 calc(var(--led-size) * 0.045) var(--surface-2),
+    0 0 0 calc(var(--led-size) * 0.058) var(--line);
+  transition: background 0.12s, box-shadow 0.12s;
+}
+.led.on {
+  background: radial-gradient(circle at 50% 40%, #f3fff6 0%, var(--hit) 26%, var(--hit-mid) 62%, var(--hit-deep) 100%);
+  box-shadow:
+    0 0 calc(var(--led-size) * 0.3) var(--hit-glow),
+    0 0 calc(var(--led-size) * 0.75) var(--hit-haze),
+    0 0 0 calc(var(--led-size) * 0.045) var(--surface-2),
+    0 0 0 calc(var(--led-size) * 0.058) var(--line);
+}
+.led.pop { animation: pop 0.3s ease-out; }
+@keyframes pop { 0% { transform: scale(0.84); } 60% { transform: scale(1.07); } 100% { transform: scale(1); } }
+.led-num {
+  position: absolute; left: 0; right: 0; top: calc(100% + var(--led-size) * 0.1);
+  text-align: center; font-family: var(--font-mono); font-weight: 500;
+  font-size: clamp(11px, calc(var(--led-size) * 0.1), 17px); color: var(--ink-3);
+}
+.prompt { margin: 0; color: var(--ink-2); font-size: clamp(14px, 1.8vw, 20px); text-align: center; min-height: 1.5em; }
+
+.readouts { display: flex; justify-content: center; align-items: flex-end; flex-wrap: wrap; gap: 8px clamp(20px, 7vw, 110px); }
+.readout { display: grid; justify-items: center; gap: 2px; }
+.readout .k { font-size: clamp(12px, 1.5vw, 16px); color: var(--ink-2); letter-spacing: 0.14em; font-weight: 500; }
+.readout .v {
+  font-family: var(--font-display); font-weight: 700; line-height: 0.95;
+  font-size: clamp(40px, 7.4vw, 110px); font-variant-numeric: tabular-nums;
+}
+.readout .v small { font-size: 0.48em; font-weight: 600; color: var(--ink-3); margin-left: 0.08em; }
+.readout .v[data-warn] { color: var(--amber); }
+
+.foot { display: flex; align-items: flex-end; gap: 12px; min-width: 0; }
+.pip { position: relative; flex: none; height: clamp(84px, 17vh, 200px); cursor: pointer; }
+.pip.off { position: fixed; left: 0; bottom: 0; width: 4px !important; height: 4px; opacity: 0.01; pointer-events: none; overflow: hidden; }
+.shotmap { flex: none; height: clamp(84px, 17vh, 200px); aspect-ratio: 1; max-width: 100%; border-radius: 10px; background: var(--surface); }
+.foot .spacer { flex: 1; }
+.foot .btn { min-height: 56px; font-size: 18px; padding: 10px 24px; }
+
+.flash { position: absolute; inset: 0; z-index: 9; pointer-events: none; background: var(--hit); opacity: 0; }
+.flash.go { animation: flash 0.42s ease-out; }
+@keyframes flash { from { opacity: 0.5; } to { opacity: 0; } }
+
+.result {
+  position: absolute; inset: 0; z-index: 10; cursor: pointer;
+  display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center;
+  padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.result[data-kind="clear"] { background: var(--hit); color: var(--hit-ink); }
+.result[data-kind="timeout"] { background: var(--miss-deep); color: var(--miss); }
+.result-title { font-family: var(--font-display); font-weight: 800; font-size: clamp(88px, 23vw, 320px); line-height: 0.88; letter-spacing: 0.02em; }
+.result-sub { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 4.2vw, 52px); font-variant-numeric: tabular-nums; }
+.result-hint { font-size: clamp(13px, 1.6vw, 17px); opacity: 0.8; }
+
+/* ---------- start card ---------- */
+.start {
+  position: fixed; inset: 0; z-index: 30; overflow: auto;
+  display: grid; place-items: center;
+  padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--shade); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+.start-card {
+  width: min(560px, 100%); display: grid; gap: 18px;
+  padding: clamp(20px, 4vw, 32px); border-radius: 16px;
+  background: var(--surface); border: 1px solid var(--line);
+}
+.start-card h1 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: clamp(36px, 7vw, 52px); line-height: 1; text-wrap: balance; }
+.start-card h1 span { color: var(--hit); }
+.lead { margin: 0; color: var(--ink-2); font-size: 16px; }
+.howto { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; counter-reset: s; }
+.howto li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start; color: var(--ink-2); font-size: 14px; }
+.howto li::before {
+  counter-increment: s; content: counter(s);
+  width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--amber); color: var(--amber);
+  display: grid; place-items: center; font-family: var(--font-mono); font-size: 12px;
+}
+.start-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.start-actions .btn { flex: 1 1 160px; }
+.start-actions .btn-primary { flex-basis: 100%; min-height: 56px; font-size: 18px; }
+.start-note { margin: 0; font-size: 14px; color: var(--amber); }
+.start-note:empty { display: none; }
+
+/* ---------- setup sheet ---------- */
+.setup { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.setup-bar {
+  display: flex; align-items: center; gap: 12px; padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.setup-bar h2 { margin: 0; font-size: 18px; font-weight: 700; white-space: nowrap; }
+.setup-bar .btn-primary { margin-left: auto; }
+.setup-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(330px, 1fr); min-height: 0; }
+.stage-col { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; min-height: 0; padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; }
+.stage-slot { min-height: 0; display: grid; place-items: center; }
+.stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; touch-action: none; }
+.pip .stage { border-radius: 8px; }
+.stage video, .stage canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+.stage video { object-fit: fill; }
+.stage #overlay { inset: 0; width: 100%; height: 100%; }
+.pip .stage-msg { display: none; }
+.stage-msg {
+  position: absolute; left: 10px; right: 10px; bottom: 10px; margin: 0; padding: 8px 12px; border-radius: 8px;
+  background: var(--shade); color: var(--ink); font-size: 14px; pointer-events: none;
+}
+.legend { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--ink-2); font-size: 13px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { display: inline-block; width: 16px; height: 0; border-top: 3px solid var(--amber); border-radius: 2px; }
+.legend i.dash { border-top: 2px dashed var(--hit); }
+.legend i.dot { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--hit); }
+.legend i.x { width: 10px; height: 10px; border: 0; background: linear-gradient(45deg, transparent 42%, var(--miss) 42% 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, var(--miss) 42% 58%, transparent 58%); }
+
+.steps {
+  min-height: 0; overflow: auto; border-left: 1px solid var(--line);
+  padding-left: 20px; padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: 48px;
+}
+.step { display: grid; gap: 12px; padding-block: 18px; border-bottom: 1px solid var(--line); }
+.step h3 { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; }
+.step h3 .n {
+  flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--amber); color: var(--amber);
+  display: grid; place-items: center; font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+}
+.hint { margin: 0; color: var(--ink-2); font-size: 14px; max-width: 62ch; }
+.hint b { color: var(--ink); font-weight: 600; }
+.field { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); }
+select, input[type="number"] {
+  width: 100%; min-height: 42px; padding: 6px 10px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--ink);
+}
+input[type="range"] { width: 100%; accent-color: var(--amber); }
+.range-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.range-row output { flex: none; min-width: 4.5ch; text-align: right; font-family: var(--font-mono); font-size: 13px; color: var(--ink); }
+.switch { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink); cursor: pointer; }
+.switch input { width: 20px; height: 20px; margin: 0; accent-color: var(--amber); flex: none; }
+.seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.seg button { min-height: 38px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-2); font-weight: 600; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+.meter { position: relative; height: 12px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.meter-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--ink-3); }
+.meter-fill.over { background: var(--hit); }
+.meter-thr { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: var(--amber); }
+.meter-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-3); }
+.stats4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.stats4 div { display: grid; padding: 8px 10px; border-radius: 8px; background: var(--surface); min-width: 0; }
+.stats4 span { font-size: 12px; color: var(--ink-2); }
+.stats4 b { font-family: var(--font-display); font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mono { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); overflow-wrap: anywhere; }
+.log-wrap { max-height: 260px; overflow: auto; }
+.log { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.log th, .log td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.log th { color: var(--ink-2); font-weight: 500; }
+.log td.ok { color: var(--hit); } .log td.no { color: var(--miss); }
+.copybox { width: 100%; min-height: 90px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; font-family: var(--font-mono); font-size: 12px; }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  z-index: 40; max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 10px;
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); font-size: 14px;
+}
+
+@media (max-width: 860px) {
+  .setup { display: block; overflow: auto; }
+  .setup-bar { position: sticky; top: 0; z-index: 2; }
+  .setup-grid { display: block; }
+  .stage-col { padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .stage-slot { height: min(64vw, 52vh); }
+  .steps { overflow: visible; border-left: 0; padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+}
+@media (max-width: 520px) {
+  .brand, #btnFull { display: none; }
+  .pip, .shotmap { height: 96px; }
+  .foot { flex-wrap: wrap; }
+  .foot .spacer { display: none; }
+  .foot .btn { flex: 1 1 100%; min-height: 50px; }
+  .field { grid-template-columns: 1fr; gap: 4px; }
+  .stats4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flash.go { animation: none; opacity: 0.3; }
+  .led.pop { animation: none; }
+  .led { transition: none; }
+}
+</style>
+
+<div id="app">
+  <main class="board" id="board">
+    <header class="topbar">
+      <span class="plate">사로 <b id="laneNo">1</b></span>
+      <span class="brand">LASER RUN · 레이저런 표적</span>
+      <span class="spacer"></span>
+      <div class="chips">
+        <span class="chip" id="chipSrc" data-state="idle"><i></i><span>입력 없음</span></span>
+        <span class="chip" id="chipTarget" data-state="idle"><i></i><span>과녁</span></span>
+      </div>
+      <button class="btn btn-quiet" id="btnFull" type="button">전체 화면</button>
+      <button class="btn" id="btnSetup" type="button">설정</button>
+    </header>
+
+    <section class="rail" aria-label="명중 표시등">
+      <div class="leds" id="leds" role="status" aria-live="polite"></div>
+      <p class="prompt" id="prompt">첫 발을 쏘면 시간이 시작돼요</p>
+    </section>
+
+    <section class="readouts">
+      <div class="readout"><span class="k">명중</span><span class="v"><span id="statHits">0</span><small>/<span id="statNeed">5</span></small></span></div>
+      <div class="readout"><span class="k">발사</span><span class="v" id="statShots">0</span></div>
+      <div class="readout"><span class="k">시간</span><span class="v" id="statTimeBox"><span id="statTime">0.0</span><small id="statLimit">초</small></span></div>
+    </section>
+
+    <footer class="foot">
+      <div class="pip" id="pipSlot" title="눌러서 설정 열기">
+        <div class="stage" id="stage">
+          <video id="video" playsinline muted autoplay></video>
+          <canvas id="demoCanvas" hidden></canvas>
+          <canvas id="overlay"></canvas>
+          <p class="stage-msg" id="stageMsg" hidden></p>
+        </div>
+      </div>
+      <canvas class="shotmap" id="shotMap" aria-label="이번 회차 탄착 위치"></canvas>
+      <span class="spacer"></span>
+      <button class="btn" id="btnReset" type="button">다시 시작</button>
+    </footer>
+
+    <div class="flash" id="flash"></div>
+    <div class="result" id="result" hidden role="alert">
+      <div class="result-title" id="resultTitle">CLEAR</div>
+      <div class="result-sub" id="resultSub"></div>
+      <div class="result-hint" id="resultHint"></div>
+    </div>
+  </main>
+
+  <section class="setup" id="setup" hidden aria-label="표적 설정">
+    <header class="setup-bar">
+      <span class="plate">사로 <b id="setupLane">1</b></span>
+      <h2>표적 설정</h2>
+      <button class="btn btn-primary" id="btnToBoard" type="button">표적 화면으로</button>
+    </header>
+    <div class="setup-grid">
+      <div class="stage-col">
+        <div class="stage-slot" id="stageSlot"></div>
+        <div class="legend">
+          <span><i></i>검정 원 테두리(7점 경계)</span>
+          <span><i class="dash"></i>명중 판정선(기준을 바꾼 경우)</span>
+          <span><i class="dot"></i>명중</span>
+          <span><i class="x"></i>빗나감</span>
+          <button class="btn btn-quiet" id="btnZoom" type="button" aria-pressed="false" style="margin-left:auto;min-height:36px">과녁 크게 보기</button>
+        </div>
+      </div>
+
+      <div class="steps">
+        <section class="step">
+          <h3><span class="n">1</span>영상 입력</h3>
+          <div class="seg" role="group" aria-label="영상 입력 방식">
+            <button type="button" data-src="camera" aria-pressed="false">카메라</button>
+            <button type="button" data-src="file" aria-pressed="false">영상 파일</button>
+            <button type="button" data-src="demo" aria-pressed="false">데모</button>
+          </div>
+          <input type="file" id="fileInput2" accept="video/*" hidden>
+          <p class="hint">태블릿 뒷면 카메라로 과녁을 비춰 주세요. 과녁 앞 1~2m, 레이저가 지나가는 길을 가리지 않는 <b>아래쪽</b>에 세우면 좋아요.</p>
+          <label class="field" id="rowCamera"><span>카메라</span><select id="selCamera"></select></label>
+          <label class="field" id="rowRes"><span>해상도</span>
+            <select id="selRes">
+              <option value="1280x720">1280×720 (권장)</option>
+              <option value="1920x1080">1920×1080 (먼 거리)</option>
+              <option value="640x480">640×480 (느린 기기)</option>
+            </select>
+          </label>
+          <div id="camControls" class="row" style="display:grid;gap:10px"></div>
+          <p class="mono" id="srcInfo">입력 없음</p>
+        </section>
+
+        <section class="step">
+          <h3><span class="n">2</span>과녁 맞추기</h3>
+          <p class="hint">노란 선이 종이 과녁의 <b>검정 원 테두리</b>와 겹치면 됩니다. 어긋나면 <b>직접 조정</b>을 누르고 가운데·끝 손잡이를 끌어 맞추세요.</p>
+          <div class="row">
+            <button class="btn" id="btnAuto" type="button">자동 인식</button>
+            <button class="btn" id="btnEdit" type="button" aria-pressed="false">직접 조정</button>
+          </div>
+          <label class="switch"><input type="checkbox" id="chkTrack">과녁이 조금 움직여도 따라가기</label>
+          <p class="mono" id="calibInfo">아직 과녁을 찾지 않았어요</p>
+          <p class="hint" id="printLinks" hidden>인쇄용 과녁:
+            <a href="target.html" target="_blank" rel="noopener" style="color:var(--amber);font-weight:600">크기 정해서 인쇄하기</a> ·
+            <a href="target-a4-59.5mm.pdf" target="_blank" rel="noopener" style="color:var(--amber)">59.5mm PDF</a> ·
+            <a href="target-a4-100mm.pdf" target="_blank" rel="noopener" style="color:var(--amber)">100mm PDF</a></p>
+        </section>
+
+        <section class="step">
+          <h3><span class="n">3</span>레이저 시험</h3>
+          <p class="hint">검정 원과 흰 부분에 몇 발씩 쏴 보세요. 쏜 자리에 초록 점(명중)이나 빨간 ×(빗나감)가 생기면 정상이에요. 데모에서는 화면을 누르면 그 자리에 쏩니다.</p>
+          <div class="field"><span>감도</span><div class="range-row"><input type="range" id="rngSens" min="1" max="10" step="1"><output id="outSens">6</output></div></div>
+          <div>
+            <div class="meter" aria-hidden="true"><div class="meter-fill" id="meterFill"></div><div class="meter-thr"></div></div>
+            <div class="meter-label"><span>빛 신호</span><span>노란 선을 넘으면 감지</span></div>
+          </div>
+          <label class="field"><span>레이저 색</span>
+            <select id="selColor">
+              <option value="red">빨강</option>
+              <option value="green">초록</option>
+              <option value="bright">모든 밝은 빛</option>
+            </select>
+          </label>
+          <div class="stats4">
+            <div><span>감지</span><b id="testCount">0</b></div>
+            <div><span>명중</span><b id="testHits">0</b></div>
+            <div><span>빗나감</span><b id="testMiss">0</b></div>
+            <div><span>빛 지속</span><b id="testDur">-</b></div>
+          </div>
+          <p class="mono" id="testSig">마지막 발의 신호 세기가 여기에 나와요.</p>
+          <div class="row"><button class="btn btn-quiet" id="btnTestClear" type="button">시험 기록 지우기</button></div>
+          <p class="hint">안 잡히면 감도를 올리고, 쏘지 않았는데 잡히면 감도를 내리세요. 야외에서는 과녁에 <b>그늘(차양)</b>을 만들면 인식이 훨씬 좋아져요.</p>
+        </section>
+
+        <section class="step">
+          <h3><span class="n">4</span>경기 규칙</h3>
+          <label class="field"><span>사로 번호</span><input type="number" id="numLane" min="1" max="99" inputmode="numeric"></label>
+          <label class="field"><span>목표 명중</span><select id="selNeed"></select></label>
+          <label class="field"><span>명중 기준</span>
+            <select id="selMinScore">
+              <option value="9">9점 이상</option>
+              <option value="8">8점 이상</option>
+              <option value="7">7점 이상 (검정 원)</option>
+              <option value="6">6점 이상</option>
+              <option value="5">5점 이상</option>
+              <option value="4">4점 이상</option>
+            </select>
+          </label>
+          <div class="field"><span>판정 여유</span><div class="range-row"><input type="range" id="rngTol" min="-10" max="30" step="1"><output id="outTol">0%</output></div></div>
+          <label class="field"><span>제한 시간</span>
+            <select id="selLimit">
+              <option value="0">없음 (기본)</option>
+              <option value="30">30초</option>
+              <option value="50">50초 (대회 규정)</option>
+              <option value="60">60초</option>
+              <option value="90">90초</option>
+            </select>
+          </label>
+          <label class="field"><span>다시 시작</span>
+            <select id="selReset">
+              <option value="0">화면을 누를 때</option>
+              <option value="3">3초 후 자동</option>
+              <option value="5">5초 후 자동</option>
+              <option value="10">10초 후 자동</option>
+            </select>
+          </label>
+          <label class="switch"><input type="checkbox" id="chkSound">명중·클리어 소리</label>
+          <label class="switch"><input type="checkbox" id="chkMissSound">빗나감 소리</label>
+          <label class="switch"><input type="checkbox" id="chkPip">표적 화면에 카메라 작게 보기</label>
+        </section>
+
+        <section class="step">
+          <h3>기록</h3>
+          <div class="log-wrap">
+            <table class="log">
+              <thead><tr><th>시각</th><th>사로</th><th>결과</th><th>시간</th><th>명중/발사</th></tr></thead>
+              <tbody id="logBody"></tbody>
+            </table>
+          </div>
+          <div class="row">
+            <button class="btn" id="btnCopyLog" type="button">기록 복사 (CSV)</button>
+            <button class="btn btn-quiet" id="btnClearLog" type="button">기록 지우기</button>
+          </div>
+          <textarea class="copybox" id="copyBox" readonly hidden aria-label="복사할 기록"></textarea>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <section class="start" id="start" aria-label="시작">
+    <div class="start-card">
+      <h1>레이저런 <span>표적</span></h1>
+      <p class="lead">태블릿 카메라로 종이 과녁을 비추면, 레이저가 검정 원(7점 이상)에 맞을 때마다 초록불이 켜져요. 5발을 모두 맞히면 CLEAR.</p>
+      <ol class="howto">
+        <li>과녁 앞 1~2m, 레이저 길을 가리지 않는 아래쪽에 태블릿을 세워요.</li>
+        <li>카메라를 켜면 검정 원을 자동으로 찾아요. 어긋나면 손으로 맞춰요.</li>
+        <li>몇 발 시험해 본 뒤 표적 화면으로 넘어가면 준비 끝.</li>
+      </ol>
+      <div class="start-actions">
+        <button class="btn btn-primary" id="btnStartCamera" type="button">카메라로 시작</button>
+        <label class="btn" for="fileInput">영상 파일로 시험</label>
+        <button class="btn" id="btnStartDemo" type="button">데모 보기</button>
+      </div>
+      <input type="file" id="fileInput" accept="video/*" hidden>
+      <p class="start-note" id="startNote"></p>
+      <p class="hint" id="previewNote" hidden>이 화면은 claude.ai 미리보기라 카메라가 막혀 있어요. 데모를 보거나, 태블릿으로 찍은 사격 영상을 올려 인식이 되는지 시험할 수 있어요. 수업에서는 https 주소에 올린 버전을 쓰세요.</p>
+    </div>
+  </section>
+
+  <div class="toast" id="toast" hidden role="status"></div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ================= basics ================= */
+  const $ = (id) => document.getElementById(id);
+  const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+
+  const DEFAULTS = {
+    lane: 1, hitsNeeded: 5, minScore: 7, tolerance: 0, timeLimit: 0, resetDelay: 5,
+    sensitivity: 6, laserColor: 'red', minInterval: 250, sound: true, missSound: false,
+    showPip: true, procSize: 480, autoTrack: true, deviceId: '', resolution: '1280x720',
+  };
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('laserrun.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('laserrun.' + k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } },
+  };
+  const saved = store.get('settings', {}) || {};
+  if ((saved.v || 1) < 2) { delete saved.timeLimit; delete saved.sensitivity; } // v2: no time limit by default, new detector scale
+  const S = Object.assign({}, DEFAULTS, saved, { v: 2 });
+  const saveSettings = () => store.set('settings', S);
+  let urlAutostart = '';
+  try {
+    const q = new URLSearchParams(location.search);
+    const num = (k, lo, hi) => { if (!q.has(k)) return null; const v = Number(q.get(k)); return Number.isFinite(v) ? clamp(Math.round(v), lo, hi) : null; };
+    const lane = num('lane', 1, 99); if (lane != null) S.lane = lane;
+    const need = num('need', 1, 10); if (need != null) S.hitsNeeded = need;
+    const lim = num('limit', 0, 600); if (lim != null) S.timeLimit = lim;
+    const min = num('min', 1, 10); if (min != null) S.minScore = min;
+    urlAutostart = q.get('autostart') || '';
+  } catch (e) { /* no URL params */ }
+
+  // sensitivity 1..10 -> red-channel rise needed (0..255 scale)
+  const SENS_THR = [0, 130, 108, 90, 75, 62, 52, 43, 36, 30, 25];
+
+  /* ================= sound ================= */
+  const Sound = {
+    ctx: null,
+    unlock() {
+      try {
+        if (!this.ctx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) this.ctx = new AC(); }
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      } catch (e) { /* audio unavailable */ }
+    },
+    tone(freq, dur, type, vol, delay) {
+      const c = this.ctx;
+      if (!c || c.state !== 'running' || !S.sound) return;
+      const t0 = c.currentTime + (delay || 0);
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t0);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vol || 0.25, t0 + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g); g.connect(c.destination); o.start(t0); o.stop(t0 + dur + 0.03);
+    },
+    hit() { this.tone(1318.5, 0.11, 'triangle', 0.32); this.tone(1975.5, 0.16, 'triangle', 0.22, 0.06); },
+    miss() { this.tone(262, 0.08, 'sine', 0.2); },
+    clear() { [1046.5, 1318.5, 1568, 2093].forEach((f, i) => this.tone(f, 0.24, 'triangle', 0.28, i * 0.11)); },
+    timeout() { this.tone(196, 0.55, 'square', 0.12); this.tone(147, 0.6, 'square', 0.1, 0.14); },
+  };
+
+  /* ================= ellipse geometry =================
+     The calibrated black zone (ring 7 edge) is an ellipse {cx, cy, a, b, theta} in source pixels.
+     rho = normalised radius: 1 on the black edge. Rings are evenly spaced, R/4 apart (10-ring = 0.25). */
+  function ellRho(e, x, y) {
+    const dx = x - e.cx, dy = y - e.cy, c = Math.cos(e.theta), s = Math.sin(e.theta);
+    const u = (dx * c + dy * s) / e.a, v = (-dx * s + dy * c) / e.b;
+    return Math.sqrt(u * u + v * v);
+  }
+  function ellToUnit(e, x, y) {
+    const dx = x - e.cx, dy = y - e.cy, c = Math.cos(e.theta), s = Math.sin(e.theta);
+    const u = (dx * c + dy * s) / e.a, v = (-dx * s + dy * c) / e.b;
+    return [u * c - v * s, u * s + v * c];
+  }
+  function ellBBox(e, k) {
+    const c = Math.cos(e.theta), s = Math.sin(e.theta);
+    const hw = k * Math.sqrt((e.a * c) ** 2 + (e.b * s) ** 2), hh = k * Math.sqrt((e.a * s) ** 2 + (e.b * c) ** 2);
+    return { x0: e.cx - hw, y0: e.cy - hh, x1: e.cx + hw, y1: e.cy + hh };
+  }
+  function ellToMat(e) {
+    const c = Math.cos(e.theta), s = Math.sin(e.theta), A = e.a * e.a, B = e.b * e.b;
+    return [A * c * c + B * s * s, (A - B) * c * s, A * s * s + B * c * c];
+  }
+  function matToEll(m, cx, cy) {
+    const p = m[0], q = m[1], r = m[2], tr = (p + r) / 2, df = Math.sqrt(((p - r) / 2) ** 2 + q * q);
+    return { cx, cy, a: Math.sqrt(tr + df), b: Math.sqrt(Math.max(1e-6, tr - df)), theta: 0.5 * Math.atan2(2 * q, p - r) };
+  }
+  const ringScore = (rho) => (rho > 2.5 ? 0 : clamp(Math.floor(11 - 4 * rho + 1e-9), 1, 10));
+  const hitRho = () => ((11 - S.minScore) / 4) * (1 + S.tolerance / 100);
+
+  /* ================= target (black disk) detection =================
+     Several grey thresholds -> dark mask -> 3x3 closing -> connected components -> each component's holes
+     filled (white ring lines / numbers inside the black) -> moment ellipse. Candidates are scored on how well
+     the region matches its ellipse (IoU), how dark it is, and the contrast with the paper ring around it. */
+  function morphClose(mask, tmp, W, H) {
+    for (let y = 0; y < H; y++) { const o = y * W; for (let x = 0; x < W; x++) { const i = o + x; tmp[i] = mask[i] | (x > 0 ? mask[i - 1] : 0) | (x < W - 1 ? mask[i + 1] : 0); } }
+    for (let y = 0; y < H; y++) { const o = y * W; for (let x = 0; x < W; x++) { const i = o + x; mask[i] = tmp[i] | (y > 0 ? tmp[i - W] : 0) | (y < H - 1 ? tmp[i + W] : 0); } }
+    for (let y = 0; y < H; y++) { const o = y * W; for (let x = 0; x < W; x++) { const i = o + x; tmp[i] = mask[i] & (x > 0 ? mask[i - 1] : 1) & (x < W - 1 ? mask[i + 1] : 1); } }
+    for (let y = 0; y < H; y++) { const o = y * W; for (let x = 0; x < W; x++) { const i = o + x; mask[i] = tmp[i] & (y > 0 ? tmp[i - W] : 1) & (y < H - 1 ? tmp[i + W] : 1); } }
+  }
+
+  function evalDisk(ctx, id, x0, y0, x1, y1, T) {
+    const { W, H, gray, mask, labels } = ctx;
+    const bx = x0 - 1, by = y0 - 1, bw = x1 - x0 + 3, bh = y1 - y0 + 3;
+    const out = new Uint8Array(bw * bh), st = new Int32Array(bw * bh);
+    let sp = 0;
+    const seed = (lx, ly) => {
+      const k = ly * bw + lx;
+      if (out[k] || labels[(by + ly) * W + bx + lx] === id) return;
+      out[k] = 1; st[sp++] = k;
+    };
+    for (let lx = 0; lx < bw; lx++) { seed(lx, 0); seed(lx, bh - 1); }
+    for (let ly = 1; ly < bh - 1; ly++) { seed(0, ly); seed(bw - 1, ly); }
+    while (sp > 0) {
+      const k = st[--sp], lx = k % bw, ly = (k - lx) / bw;
+      if (lx > 0) seed(lx - 1, ly);
+      if (lx < bw - 1) seed(lx + 1, ly);
+      if (ly > 0) seed(lx, ly - 1);
+      if (ly < bh - 1) seed(lx, ly + 1);
+    }
+    let m00 = 0, m10 = 0, m01 = 0, m20 = 0, m11 = 0, m02 = 0, dark = 0;
+    for (let ly = 0; ly < bh; ly++) {
+      const y = by + ly, row = ly * bw, grow = y * W;
+      for (let lx = 0; lx < bw; lx++) {
+        if (out[row + lx]) continue;
+        const x = bx + lx;
+        m00++; m10 += x; m01 += y; m20 += x * x; m11 += x * y; m02 += y * y;
+        if (mask[grow + x]) dark++;
+      }
+    }
+    if (m00 < 30) return null;
+    const mx = m10 / m00, my = m01 / m00;
+    const c20 = m20 / m00 - mx * mx + 1 / 12, c02 = m02 / m00 - my * my + 1 / 12, c11 = m11 / m00 - mx * my;
+    const tr = (c20 + c02) / 2, df = Math.sqrt(((c20 - c02) / 2) ** 2 + c11 * c11);
+    if (tr - df <= 0) return null;
+    const a = 2 * Math.sqrt(tr + df), b = 2 * Math.sqrt(tr - df);
+    if (a < 5 || b / a < 0.3) return null;
+    const th = 0.5 * Math.atan2(2 * c11, c20 - c02);
+    const e = { cx: mx + 0.5, cy: my + 0.5, a, b, theta: th };
+    const cs = Math.cos(th), sn = Math.sin(th), ia = 1 / a, ib = 1 / b;
+    const bb = ellBBox(e, 1);
+    const ux0 = Math.max(0, Math.floor(Math.min(bb.x0, bx))), uy0 = Math.max(0, Math.floor(Math.min(bb.y0, by)));
+    const ux1 = Math.min(W - 1, Math.ceil(Math.max(bb.x1, bx + bw - 1))), uy1 = Math.min(H - 1, Math.ceil(Math.max(bb.y1, by + bh - 1)));
+    let inter = 0, uni = 0;
+    for (let y = uy0; y <= uy1; y++) {
+      const dy = y + 0.5 - e.cy, ly = y - by, rowOk = ly >= 0 && ly < bh;
+      for (let x = ux0; x <= ux1; x++) {
+        const dx = x + 0.5 - e.cx;
+        const u = (dx * cs + dy * sn) * ia, v = (-dx * sn + dy * cs) * ib;
+        const inE = u * u + v * v <= 1;
+        const lx = x - bx;
+        const inR = rowOk && lx >= 0 && lx < bw && !out[ly * bw + lx];
+        if (inE || inR) { uni++; if (inE && inR) inter++; }
+      }
+    }
+    const iou = uni ? inter / uni : 0;
+    if (iou < 0.7) return null;
+    const ringMean = (r0, r1, nr, na) => {
+      let sum = 0, cnt = 0, tot = 0;
+      for (let i = 0; i < nr; i++) {
+        const r = r0 + ((r1 - r0) * (i + 0.5)) / nr;
+        for (let j = 0; j < na; j++) {
+          const t = ((j + 0.5) * 2 * Math.PI) / na; tot++;
+          const u = r * Math.cos(t) * a, v = r * Math.sin(t) * b;
+          const xi = Math.floor(e.cx + u * cs - v * sn), yi = Math.floor(e.cy + u * sn + v * cs);
+          if (xi < 0 || yi < 0 || xi >= W || yi >= H) continue;
+          sum += gray[yi * W + xi]; cnt++;
+        }
+      }
+      return cnt > tot * 0.5 ? sum / cnt : NaN;
+    };
+    const meanIn = ringMean(0.08, 0.82, 6, 28), meanOut = ringMean(1.14, 1.42, 4, 40);
+    if (!(meanOut - meanIn > 25)) return null;
+    const contrast = (meanOut - meanIn) / Math.max(70, meanOut);
+    const darkFrac = dark / m00;
+    if (contrast < 0.22 || darkFrac < 0.45) return null;
+    const iouS = Math.min(1, (iou - 0.7) / 0.22);
+    const sizeS = Math.min(1, a / (0.05 * Math.min(W, H)));
+    const dc = Math.hypot(e.cx - W / 2, e.cy - H / 2) / Math.hypot(W / 2, H / 2);
+    const score = iouS * contrast * darkFrac * darkFrac * sizeS * (1 - 0.35 * dc);
+    return Object.assign(e, { score, meanIn, meanOut, iou, darkFrac, contrast, T });
+  }
+
+  function diskAt(ctx, T, hint) {
+    const { W, H, gray, mask, tmp, labels, stack } = ctx, n = W * H;
+    for (let i = 0; i < n; i++) mask[i] = gray[i] < T ? 1 : 0;
+    morphClose(mask, tmp, W, H);
+    labels.fill(0);
+    const minArea = Math.max(40, n * 0.0005);
+    let best = null, id = 0;
+    for (let s = 0; s < n; s++) {
+      if (!mask[s] || labels[s]) continue;
+      id++;
+      let sp = 0; stack[sp++] = s; labels[s] = id;
+      let area = 0, x0 = W, y0 = H, x1 = -1, y1 = -1;
+      while (sp > 0) {
+        const i = stack[--sp]; area++;
+        const x = i % W, y = (i - x) / W;
+        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        if (x > 0 && mask[i - 1] && !labels[i - 1]) { labels[i - 1] = id; stack[sp++] = i - 1; }
+        if (x < W - 1 && mask[i + 1] && !labels[i + 1]) { labels[i + 1] = id; stack[sp++] = i + 1; }
+        if (y > 0 && mask[i - W] && !labels[i - W]) { labels[i - W] = id; stack[sp++] = i - W; }
+        if (y < H - 1 && mask[i + W] && !labels[i + W]) { labels[i + W] = id; stack[sp++] = i + W; }
+      }
+      if (area < minArea || x0 <= 0 || y0 <= 0 || x1 >= W - 1 || y1 >= H - 1) continue;
+      if (x1 - x0 < 8 || y1 - y0 < 8) continue;
+      if (hint && Math.hypot((x0 + x1) / 2 - hint.cx, (y0 + y1) / 2 - hint.cy) > hint.r * 3 + 4) continue;
+      const c = evalDisk(ctx, id, x0, y0, x1, y1, T);
+      if (!c) continue;
+      if (hint && Math.hypot(c.cx - hint.cx, c.cy - hint.cy) > hint.r) continue;
+      if (!best || c.score > best.score) best = c;
+    }
+    return best;
+  }
+
+  function detectTarget(img, hint) {
+    const W = img.width, H = img.height, n = W * H, d = img.data;
+    if (W < 24 || H < 24) return null;
+    const gray = new Uint8Array(n), hist = new Uint32Array(256);
+    for (let i = 0, p = 0; i < n; i++, p += 4) { const g = (d[p] * 77 + d[p + 1] * 150 + d[p + 2] * 29) >> 8; gray[i] = g; hist[g]++; }
+    const pct = (q) => { const target = q * n; let acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= target) return v; } return 255; };
+    const lo = pct(0.01), hi = pct(0.97);
+    if (hi - lo < 35) return null;
+    const ctx = { W, H, gray, mask: new Uint8Array(n), tmp: new Uint8Array(n), labels: new Int32Array(n), stack: new Int32Array(n) };
+    let best = null;
+    for (let k = 1; k <= 7; k++) {
+      const c = diskAt(ctx, Math.round(lo + ((hi - lo) * k) / 9), hint);
+      if (c && (!best || c.score > best.score)) best = c;
+    }
+    if (!best) return null;
+    const r = diskAt(ctx, Math.round((best.meanIn + best.meanOut) / 2), { cx: best.cx, cy: best.cy, r: Math.max(4, best.a * 0.3) });
+    return r && r.score >= best.score * 0.6 ? r : best;
+  }
+
+  /* ================= laser detection =================
+     Running background per pixel (R,G,B). Global brightness changes (auto exposure, clouds, flicker) are
+     divided out; big or numerous blobs (people walking, camera bumps, leaf shadows) are ignored.
+     Tier A (whole view): a small blob whose red rose sharply and more than green/blue did, or that clipped
+       to white over a darker background. Catches clear flashes and misses on the white paper.
+     Tier B (black zone only, for sunlight): red excess = red rise - max(green rise, blue rise), summed over
+       3x3 pixels, compared with that pixel's own learned noise. A moderately weak flash must appear at the
+       same spot in two frames in a row; a very clear one counts from a single frame. */
+  class LaserDetector {
+    constructor() {
+      this.bg = null; this.cap = 4096; this.cand = new Int32Array(this.cap); this.stack = new Int32Array(this.cap);
+      this.absorb = 0; this.peak = 0; this.peakZ = 0; this.zone = null; this.zoneBox = null; this.pending = [];
+      this.configure(6, 'red');
+    }
+    configure(sens, color) {
+      const sv = clamp(Math.round(sens) || 6, 1, 10);
+      this.thr = SENS_THR[sv];
+      this.redThr = Math.max(8, this.thr * 0.3);
+      this.zLow = 7.5 - 0.4 * sv;          // sigmas needed in two frames in a row (sens 6: 5.1)
+      this.zSingle = this.zLow * 1.75;     // sigmas needed in a single frame       (sens 6: 8.9)
+      this.floorB = 10 + 2 * (10 - sv);    // and never less than this much summed red excess
+      this.mode = color;
+      this.c0 = color === 'green' ? 1 : 0; this.c1 = color === 'green' ? 0 : 1; this.c2 = 2;
+    }
+    reset() { this.bg = null; this.pending = []; this.zv = null; this.typVar = 0; }
+    /** mask: Uint8Array(w*h) of processed pixels inside the black zone (+ margin); box: its bounds */
+    setZone(mask, box) {
+      const same = this.zoneBox && box && this.zoneBox.x0 === box.x0 && this.zoneBox.y0 === box.y0 && this.zoneBox.x1 === box.x1 && this.zoneBox.y1 === box.y1;
+      this.zone = mask; this.zoneBox = box;
+      if (!same) this.pending = [];
+    }
+    process(img) {
+      const d = img.data, w = img.width, h = img.height, n = w * h;
+      if (!this.bg || this.w !== w || this.h !== h) {
+        this.w = w; this.h = h; this.bg = new Float32Array(n * 3); this.mark = new Uint8Array(n); this.skip = new Uint8Array(n);
+        for (let i = 0, p = 0, q = 0; i < n; i++, p += 4, q += 3) { this.bg[q] = d[p]; this.bg[q + 1] = d[p + 1]; this.bg[q + 2] = d[p + 2]; }
+        this.warm = 2; this.peak = 0; this.blobs = 0;
+        return null;
+      }
+      const bg = this.bg, mark = this.mark;
+      let sc = 0, sb = 0;
+      for (let i = 0; i < n; i += 11) { const p = i << 2, q = i * 3; sc += d[p] + d[p + 1] + d[p + 2]; sb += bg[q] + bg[q + 1] + bg[q + 2]; }
+      const gain = sb > 1 ? sc / sb : 1;
+      this.gain = gain;
+      if (this.warm > 0 || gain < 0.72 || gain > 1.38) {
+        if (this.warm > 0) this.warm--;
+        this.blend(d, n, 0.5); this.peak = 0;
+        return null;
+      }
+      // On bright paper red can only climb to 255, so the required rise shrinks with the headroom left;
+      // the colour test (red rises clearly more than green/blue) keeps that from triggering on noise.
+      const thr = this.thr, redThr = this.redThr, c0 = this.c0, c1 = this.c1, c2 = this.c2, bright = this.mode === 'bright';
+      const minRise = Math.max(12, thr * 0.4), gate = minRise * 0.5;
+      const cand = this.cand, cap = this.cap;
+      let nc = 0, overflow = false, peak = 0;
+      for (let i = 0, p = 0, q = 0; i < n; i++, p += 4, q += 3) {
+        let v0, b0;
+        if (bright) { v0 = (d[p] + d[p + 1] + d[p + 2]) / 3; b0 = ((bg[q] + bg[q + 1] + bg[q + 2]) / 3) * gain; }
+        else { v0 = d[p + c0]; b0 = bg[q + c0] * gain; }
+        const d0 = v0 - b0;
+        if (d0 <= gate) continue;
+        if (!bright) {
+          const d1 = d[p + c1] - bg[q + c1] * gain, d2 = d[p + c2] - bg[q + c2] * gain;
+          if (!(d0 - (d1 > d2 ? d1 : d2) > redThr || (v0 >= 245 && b0 < 120))) continue;
+        }
+        const room = 0.6 * (255 - b0), te = room < thr ? (room > minRise ? room : minRise) : thr;
+        const ratio = d0 / te;
+        if (ratio > peak) peak = ratio;
+        if (ratio > 1) { if (nc < cap) { cand[nc++] = i; mark[i] = 1; } else overflow = true; }
+      }
+      this.peak = peak;
+      const blobs = [];
+      let best = null, valid = 0, big = overflow;
+      if (!overflow) {
+        const st = this.stack;
+        for (let k = 0; k < nc; k++) {
+          const s = cand[k];
+          if (mark[s] !== 1) continue;
+          let sp = 0; st[sp++] = s; mark[s] = 2;
+          let area = 0, sw = 0, sx = 0, sy = 0, pk = 0, red = 0, x0 = w, x1 = -1, y0 = h, y1 = -1;
+          while (sp > 0) {
+            const i = st[--sp], x = i % w, y = (i - x) / w, p = i << 2, q = i * 3;
+            let wt;
+            if (bright) wt = (d[p] + d[p + 1] + d[p + 2]) / 3 - ((bg[q] + bg[q + 1] + bg[q + 2]) / 3) * gain;
+            else {
+              wt = d[p + c0] - bg[q + c0] * gain;
+              const e1 = d[p + c1] - bg[q + c1] * gain, e2 = d[p + c2] - bg[q + c2] * gain;
+              if (wt - (e1 > e2 ? e1 : e2) > redThr) red++;
+            }
+            area++; sw += wt; sx += wt * x; sy += wt * y; if (wt > pk) pk = wt;
+            if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+            for (let yy = y - 1; yy <= y + 1; yy++) {
+              if (yy < 0 || yy >= h) continue;
+              for (let xx = x - 1; xx <= x + 1; xx++) {
+                if (xx < 0 || xx >= w) continue;
+                const j = yy * w + xx;
+                if (mark[j] === 1) { mark[j] = 2; st[sp++] = j; }
+              }
+            }
+          }
+          blobs.push({ area, energy: sw, x: sx / sw + 0.5, y: sy / sw + 0.5, peak: pk, red, x0, x1, y0, y1 });
+        }
+        const maxArea = Math.max(80, n * 0.006);
+        for (const b of blobs) {
+          const bw = b.x1 - b.x0 + 1, bh = b.y1 - b.y0 + 1;
+          if (b.area > maxArea) { if (b.area >= 0.3 * bw * bh || b.red >= 0.3 * b.area) big = true; continue; } // solid or red = a person/hand; thin grey arcs = edges swaying
+          if (b.area < 2 && b.peak < thr * 2) continue;
+          if (Math.max(bw, bh) > 4 * Math.min(bw, bh) + 2) continue;
+          if (b.area > 12 && b.area < 0.25 * bw * bh) continue; // thin arcs, e.g. a ring edge after a camera bump
+          if (!bright && b.red < Math.max(1, b.area * 0.08)) continue; // a white flash with no red halo is not our laser
+          valid++;
+          if (!best || b.energy > best.energy) best = b;
+        }
+        if (valid > 4) big = true;
+      }
+      for (let k = 0; k < nc; k++) mark[cand[k]] = 0;
+      this.blobs = valid;
+      // tier B only when tier A saw nothing: a strong flash also lights up a wide patch in tier B
+      const tb = !overflow && !bright && !best ? this.tierB(d, w, h, gain, big) : null;
+      if (!tb) { this.pending = []; this.peakZ = 0; }
+      if (tb && tb.big) big = true;
+      if (!best && tb && tb.best) best = tb.best;
+      // something large moved through the target area (a person, a hand, a bump): ignore flashes for ~0.3 s,
+      // and if it never settles, accept the new scene as background
+      this.frame = (this.frame || 0) + 1;
+      if (big) { this.quietUntil = this.frame + 9; this.busy = (this.busy || 0) + 1; if (this.busy > 45) { this.absorb = 20; this.busy = 0; } }
+      else this.busy = 0;
+      if (this.frame <= (this.quietUntil || 0)) best = null;
+      // background update, leaving the area around any flash untouched
+      const skip = this.skip, boxes = [];
+      if (!overflow && this.absorb <= 0) {
+        for (const b of tb && tb.blobs ? blobs.concat(tb.blobs) : blobs) {
+          const x0 = Math.max(0, b.x0 - 4), x1 = Math.min(w - 1, b.x1 + 4), y0 = Math.max(0, b.y0 - 4), y1 = Math.min(h - 1, b.y1 + 4);
+          for (let y = y0; y <= y1; y++) skip.fill(1, y * w + x0, y * w + x1 + 1);
+          boxes.push([x0, x1, y0, y1]);
+        }
+      }
+      const a = overflow ? 0.3 : this.absorb > 0 ? 0.25 : 0.06;
+      if (this.absorb > 0) this.absorb--;
+      for (let i = 0, p = 0, q = 0; i < n; i++, p += 4, q += 3) {
+        if (skip[i]) continue;
+        bg[q] += (d[p] - bg[q]) * a; bg[q + 1] += (d[p + 1] - bg[q + 1]) * a; bg[q + 2] += (d[p + 2] - bg[q + 2]) * a;
+      }
+      for (const [x0, x1, y0, y1] of boxes) for (let y = y0; y <= y1; y++) skip.fill(0, y * w + x0, y * w + x1 + 1);
+      return best;
+    }
+    tierB(d, w, h, gain, calmBroken) {
+      const n = w * h, zone = this.zone, zb = this.zoneBox;
+      this.peakZ = 0;
+      if (!zone || zone.length !== n || !zb) return null;
+      const bg = this.bg, c0 = this.c0, c1 = this.c1, c2 = this.c2;
+      const ox = zb.x0 - 1, oy = zb.y0 - 1, bw = zb.x1 - zb.x0 + 3, bh = zb.y1 - zb.y0 + 3, m = bw * bh;
+      if (!this.fs || this.fs.length !== m) {
+        this.zs = new Float32Array(m); this.zr = new Float32Array(m); this.ht = new Float32Array(m); this.hr = new Float32Array(m);
+        this.fs = new Float32Array(m); this.fr = new Float32Array(m); this.markB = new Uint8Array(m);
+        this.candB = new Int32Array(Math.min(m, 4096)); this.stackB = new Int32Array(Math.min(m, 4096));
+      }
+      // noise memory lives in whole-image pixel coordinates, so a nudged outline does not reset it
+      if (!this.zv || this.zv.length !== n) { this.zv = new Float32Array(n); this.zage = new Uint8Array(n); this.typVar = 0; }
+      const zs = this.zs, zr = this.zr, ht = this.ht, hr = this.hr, fs = this.fs, fr = this.fr, markB = this.markB, zv = this.zv, zage = this.zage;
+      const typ = this.typVar > 0 ? this.typVar : 400;
+      const sdAt = (i) => Math.sqrt(zage[i] >= 12 ? zv[i] : Math.max(zv[i], typ)) * 1.1 + 1.5;
+      for (let ly = 0; ly < bh; ly++) {
+        const y = oy + ly;
+        for (let lx = 0; lx < bw; lx++) {
+          const i = y * w + ox + lx, p = i << 2, q = i * 3, k = ly * bw + lx;
+          const e0 = d[p + c0] - bg[q + c0] * gain, e1 = d[p + c1] - bg[q + c1] * gain, e2 = d[p + c2] - bg[q + c2] * gain;
+          zs[k] = e0 - (e1 > e2 ? e1 : e2); zr[k] = e0;
+        }
+      }
+      for (let ly = 0; ly < bh; ly++) { const r = ly * bw; for (let lx = 1; lx < bw - 1; lx++) { const k = r + lx; ht[k] = zs[k - 1] + zs[k] + zs[k + 1]; hr[k] = zr[k - 1] + zr[k] + zr[k + 1]; } }
+      for (let ly = 1; ly < bh - 1; ly++) { const r = ly * bw; for (let lx = 1; lx < bw - 1; lx++) { const k = r + lx; fs[k] = ht[k - bw] + ht[k] + ht[k + bw]; fr[k] = hr[k - bw] + hr[k] + hr[k + bw]; } }
+      const zLow = this.zLow, floorB = this.floorB, cand = this.candB, cap = cand.length;
+      let nc = 0, over = false, zoneN = 0, peakZ = 0;
+      for (let ly = 1; ly < bh - 1; ly++) {
+        const y = oy + ly;
+        for (let lx = 1; lx < bw - 1; lx++) {
+          const i = y * w + ox + lx;
+          if (!zone[i]) continue;
+          zoneN++;
+          const k = ly * bw + lx, f = fs[k];
+          if (f <= floorB || fr[k] < 0.6 * f) continue;
+          const z = f / sdAt(i);
+          if (z > peakZ) peakZ = z;
+          if (z < zLow || bg[i * 3 + c0] * gain > 240) continue;
+          if (nc < cap) { cand[nc++] = k; markB[k] = 1; } else over = true;
+        }
+      }
+      this.peakZ = peakZ / this.zSingle;
+      const st = this.stackB, out = [];
+      let big = over || nc > zoneN * 0.08;
+      if (!big) {
+        for (let c = 0; c < nc; c++) {
+          const s0 = cand[c];
+          if (markB[s0] !== 1) continue;
+          let sp = 0; st[sp++] = s0; markB[s0] = 2;
+          let area = 0, sw = 0, sx = 0, sy = 0, zmax = 0, rmax = 0, x0 = bw, x1 = -1, y0 = bh, y1 = -1;
+          while (sp > 0) {
+            const k = st[--sp], lx = k % bw, ly = (k - lx) / bw, f = fs[k];
+            area++; sw += f; sx += f * lx; sy += f * ly; if (zr[k] > rmax) rmax = zr[k];
+            const z = f / sdAt((oy + ly) * w + ox + lx); if (z > zmax) zmax = z;
+            if (lx < x0) x0 = lx; if (lx > x1) x1 = lx; if (ly < y0) y0 = ly; if (ly > y1) y1 = ly;
+            for (let yy = ly - 1; yy <= ly + 1; yy++) {
+              if (yy < 1 || yy >= bh - 1) continue;
+              for (let xx = lx - 1; xx <= lx + 1; xx++) {
+                if (xx < 1 || xx >= bw - 1) continue;
+                const j = yy * bw + xx;
+                if (markB[j] === 1) { markB[j] = 2; if (sp < st.length) st[sp++] = j; }
+              }
+            }
+          }
+          const bwid = x1 - x0 + 1, bhei = y1 - y0 + 1, fill = area / (bwid * bhei);
+          if (area > 400 || (area > 40 && fill < 0.35)) { big = true; continue; } // shade edges, not a dot
+          if (Math.max(bwid, bhei) > 3 * Math.min(bwid, bhei) + 2) continue;
+          // a laser dot is local; a shadow edge also changes the pixels around it
+          const cxB = ox + sx / sw + 0.5, cyB = oy + sy / sw + 0.5, rr = Math.max(5, 2.5 * Math.sqrt(area / Math.PI));
+          let ringSum = 0, ringN = 0;
+          for (let a = 0; a < 16; a++) {
+            const px = Math.round(cxB + rr * Math.cos(a * Math.PI / 8)), py = Math.round(cyB + rr * Math.sin(a * Math.PI / 8));
+            if (px < 0 || py < 0 || px >= w || py >= h) continue;
+            const i = py * w + px;
+            ringSum += Math.abs(d[(i << 2) + c0] - bg[i * 3 + c0] * gain); ringN++;
+          }
+          if (ringN && ringSum / ringN > 0.35 * rmax) continue;
+          out.push({ area, energy: sw, x: cxB, y: cyB, z: zmax, peak: zmax, red: area, tier: 'B', x0: ox + x0, x1: ox + x1, y0: oy + y0, y1: oy + y1 });
+        }
+        if (out.length > 3) big = true;
+      }
+      for (let c = 0; c < nc; c++) markB[cand[c]] = 0;
+      let best = null;
+      const prev = this.pending;
+      this.pending = big ? [] : out;
+      if (!big) {
+        for (const b of out) {
+          const near = prev.find((p) => Math.hypot(p.x - b.x, p.y - b.y) <= 4);
+          if (b.z < this.zSingle && !near) continue;
+          const e = near ? Object.assign({}, b, { energy: b.energy + near.energy, z: Math.max(b.z, near.z), confirmed: true }) : b;
+          if (!best || e.energy > best.energy) best = e;
+        }
+      }
+      // learn each pixel's noise on calm frames only (a clipped update so a missed flash cannot inflate it)
+      if (!big && !calmBroken) {
+        for (const b of out) for (let ly = Math.max(1, b.y0 - oy - 2); ly <= Math.min(bh - 2, b.y1 - oy + 2); ly++) for (let lx = Math.max(1, b.x0 - ox - 2); lx <= Math.min(bw - 2, b.x1 - ox + 2); lx++) markB[ly * bw + lx] = 3;
+        let sumV = 0, cntV = 0;
+        for (let ly = 1; ly < bh - 1; ly++) {
+          const r = ly * bw, gy = (oy + ly) * w + ox;
+          for (let lx = 1; lx < bw - 1; lx++) {
+            const k = r + lx, i = gy + lx;
+            if (markB[k]) { markB[k] = 0; continue; } // leave the noise estimate alone where a flash may sit
+            const age = zage[i], f = fs[k], f2 = f * f, v = zv[i];
+            if (age < 12) { zv[i] = v + (f2 - v) / (age + 1); zage[i] = age + 1; } // plain average to start
+            else {
+              const cap2 = 16 * v + 100;
+              zv[i] = v + 0.04 * ((f2 < cap2 ? f2 : cap2) - v);
+              if (age < 255) zage[i] = age + 1;
+              if (zone[i]) { sumV += zv[i]; cntV++; }
+            }
+          }
+        }
+        if (cntV > 50) this.typVar = sumV / cntV; // what a settled pixel here looks like: used for new pixels
+      }
+      return { best, blobs: out, big };
+    }
+    blend(d, n, a) {
+      const bg = this.bg;
+      for (let i = 0, p = 0, q = 0; i < n; i++, p += 4, q += 3) { bg[q] += (d[p] - bg[q]) * a; bg[q + 1] += (d[p + 1] - bg[q + 1]) * a; bg[q + 2] += (d[p + 2] - bg[q + 2]) * a; }
+    }
+  }
+
+  /* One trigger pull = one shot: the flash may last several frames; it counts once, at its brightest frame. */
+  class ShotTracker {
+    constructor(onShot) { this.onShot = onShot; this.reset(); }
+    reset() { this.state = 'ready'; this.lastShot = -1e9; this.lastSeen = -1e9; this.best = null; this.start = 0; this.frames = 0; }
+    update(blob, t) {
+      if (this.state === 'ready') {
+        if (blob && t - this.lastShot >= S.minInterval) { this.state = 'active'; this.start = t; this.best = blob; this.frames = 1; this.lastSeen = t; }
+      } else if (this.state === 'active') {
+        if (blob) { this.lastSeen = t; this.frames++; if (blob.energy > this.best.energy) this.best = blob; }
+        if (!blob || t - this.start >= 170) {
+          this.state = 'cooldown'; this.lastShot = this.start;
+          this.onShot(this.best, this.start, this.frames);
+        }
+      } else {
+        if (blob) { this.lastSeen = t; if (t - this.start > 1500) detector.absorb = 20; }
+        if (t - this.lastSeen >= 90 && t - this.lastShot >= S.minInterval) this.state = 'ready';
+      }
+    }
+  }
+
+  /* ================= demo source (synthetic camera) ================= */
+  class Demo {
+    constructor(cv) {
+      this.cv = cv; cv.width = 960; cv.height = 540;
+      this.ctx = cv.getContext('2d');
+      this.R = 52; this.cx = 486; this.cy = 262; this.sy = 0.9; this.rot = -0.05;
+      this.spots = []; this.nextAuto = 0; this.running = false; this.auto = true;
+      this.base = this.paint(); this.noise = this.makeNoise(); this.pat = null;
+    }
+    map(ux, uy) {
+      const x = ux * this.R, y = uy * this.R * this.sy, c = Math.cos(this.rot), s = Math.sin(this.rot);
+      return [this.cx + x * c - y * s, this.cy + x * s + y * c];
+    }
+    paint() {
+      const c = document.createElement('canvas'); c.width = 960; c.height = 540;
+      const g = c.getContext('2d');
+      const wall = g.createLinearGradient(0, 0, 0, 540); wall.addColorStop(0, '#6c736f'); wall.addColorStop(1, '#4a514d');
+      g.fillStyle = wall; g.fillRect(0, 0, 960, 540);
+      g.fillStyle = '#8a6a44'; g.fillRect(286, 30, 400, 480);
+      g.save(); g.translate(this.cx, this.cy); g.rotate(this.rot); g.scale(1, this.sy);
+      g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(-146, -200, 300, 412);
+      g.fillStyle = '#eceee8'; g.fillRect(-150, -206, 300, 412);
+      const R = this.R;
+      for (let n = 1; n <= 10; n++) {
+        const r = (R * (11 - n)) / 4;
+        g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2);
+        if (n === 7) { g.fillStyle = '#0a0a0a'; g.fill(); }
+        g.lineWidth = 1.1; g.strokeStyle = n >= 8 ? '#3c3c3c' : '#262626'; g.stroke();
+      }
+      g.font = '600 11px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      for (let n = 1; n <= 8; n++) {
+        const r = (R * (11 - n)) / 4 - R / 8;
+        g.fillStyle = n >= 7 ? '#5a5a5a' : '#333';
+        g.fillText(String(n), 0, -r); g.fillText(String(n), 0, r); g.fillText(String(n), -r, 0); g.fillText(String(n), r, 0);
+      }
+      g.restore();
+      return c;
+    }
+    makeNoise() {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const g = c.getContext('2d'), im = g.createImageData(128, 128);
+      for (let i = 0; i < im.data.length; i += 4) { const v = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
+      g.putImageData(im, 0, 0);
+      return c;
+    }
+    shootAt(x, y) { this.spots.push({ x, y, frames: 2 }); }
+    render(t) {
+      const g = this.ctx;
+      g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+      g.drawImage(this.base, 0, 0);
+      if (!this.pat) this.pat = g.createPattern(this.noise, 'repeat');
+      const ox = (Math.random() * 128) | 0, oy = (Math.random() * 128) | 0;
+      g.save(); g.globalAlpha = 0.05; g.translate(-ox, -oy); g.fillStyle = this.pat; g.fillRect(ox, oy, 960, 540); g.restore();
+      const idle = game.phase === 'clear' || game.phase === 'timeout';
+      if (this.auto && !idle && t >= this.nextAuto) {
+        if (this.nextAuto) {
+          const hit = Math.random() < 0.72, ang = Math.random() * Math.PI * 2;
+          const rho = hit ? 0.93 * Math.sqrt(Math.random()) : 1.12 + Math.random() * 1.2;
+          const [x, y] = this.map(rho * Math.cos(ang), rho * Math.sin(ang));
+          this.shootAt(x, y);
+        }
+        this.nextAuto = t + 1100 + Math.random() * 1300;
+      }
+      if (this.spots.length) {
+        g.globalCompositeOperation = 'lighter';
+        for (const s of this.spots) {
+          const rg = g.createRadialGradient(s.x, s.y, 0, s.x, s.y, 10);
+          rg.addColorStop(0, 'rgba(255,235,235,1)'); rg.addColorStop(0.28, 'rgba(255,80,70,0.95)'); rg.addColorStop(1, 'rgba(255,0,0,0)');
+          g.fillStyle = rg; g.beginPath(); g.arc(s.x, s.y, 10, 0, Math.PI * 2); g.fill();
+          s.frames--;
+        }
+        g.globalCompositeOperation = 'source-over';
+        this.spots = this.spots.filter((s) => s.frames > 0);
+      }
+    }
+  }
+
+  /* ================= state ================= */
+  const video = $('video'), demoCanvas = $('demoCanvas'), overlay = $('overlay'), stage = $('stage');
+  const proc = document.createElement('canvas'), pctx = proc.getContext('2d', { willReadFrequently: true });
+  const small = document.createElement('canvas'), sctx = small.getContext('2d', { willReadFrequently: true });
+  const calCanvas = document.createElement('canvas'), calCtx = calCanvas.getContext('2d', { willReadFrequently: true });
+
+  let srcKind = null, stream = null, track = null, fileURL = null, demo = null;
+  let calib = null, roi = null, mode = 'board', attract = true, editMode = false, drag = null, setupZoom = false;
+  const view = { s: 1, ox: 0, oy: 0, key: '' }; // source px -> stage CSS px
+  let loopToken = 0, autoTimer = 0, trackFails = 0, trackRuns = 0, lastTrack = 0, lastSeenT = -1e9, meterVal = 0;
+  const detector = new LaserDetector();
+  const tracker = new ShotTracker(handleShot);
+  const recent = [], allShots = [], frameLog = [];
+  const test = { count: 0, hits: 0, misses: 0, frames: 0 };
+  const perf = { fps: 0, lastT: 0, procMs: 0, frames: 0 };
+  const events = [];
+  const game = { phase: 'ready', hits: 0, shots: 0, t0: 0, tEnd: 0, list: [], timer: 0, resetAt: 0 };
+  let log = store.get('log', []);
+  if (!Array.isArray(log)) log = [];
+
+  const tokens = {};
+  function readTokens() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ['hit', 'miss', 'amber', 'ink', 'ink-2', 'ink-3', 'paper', 'paper-line', 'surface', 'surface-2', 'bg']) tokens[k] = cs.getPropertyValue('--' + k).trim() || '#888';
+  }
+  function rgba(hex, a) {
+    const h = hex.replace('#', '');
+    const v = h.length === 3 ? h.split('').map((c) => parseInt(c + c, 16)) : [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+    return `rgba(${v[0]},${v[1]},${v[2]},${a})`;
+  }
+
+  /* ================= sources ================= */
+  const srcEl = () => (srcKind === 'demo' ? demoCanvas : video);
+  function srcSize() {
+    if (srcKind === 'demo') return [demoCanvas.width, demoCanvas.height];
+    if (srcKind) return [video.videoWidth || 0, video.videoHeight || 0];
+    return [0, 0];
+  }
+  function stopSource() {
+    loopToken++;
+    clearTimeout(autoTimer);
+    if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; track = null; }
+    if (fileURL) { URL.revokeObjectURL(fileURL); fileURL = null; }
+    try { video.pause(); } catch (e) { /* ignore */ }
+    video.srcObject = null; video.removeAttribute('src');
+    if (demo) demo.running = false;
+    srcKind = null; roi = null; detector.reset(); tracker.reset();
+  }
+  function waitForVideo() {
+    return new Promise((res) => {
+      if (video.videoWidth) return res();
+      const done = () => { video.removeEventListener('loadeddata', done); res(); };
+      video.addEventListener('loadeddata', done);
+      setTimeout(done, 4000);
+    });
+  }
+  async function useCamera() {
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('insecure');
+    const [w, h] = S.resolution.split('x').map(Number);
+    const base = { width: { ideal: w }, height: { ideal: h }, frameRate: { ideal: 60 } };
+    let s;
+    try {
+      s = await navigator.mediaDevices.getUserMedia({ audio: false, video: Object.assign({}, base, S.deviceId ? { deviceId: { exact: S.deviceId } } : { facingMode: { ideal: 'environment' } }) });
+    } catch (e) {
+      if (!S.deviceId || !/Overconstrained|NotFound/.test(e.name)) throw e;
+      S.deviceId = ''; saveSettings();
+      s = await navigator.mediaDevices.getUserMedia({ audio: false, video: Object.assign({}, base, { facingMode: { ideal: 'environment' } }) });
+    }
+    stopSource();
+    stream = s; track = s.getVideoTracks()[0]; srcKind = 'camera';
+    video.muted = true; video.srcObject = s;
+    await video.play().catch(() => {});
+    await waitForVideo();
+    track.addEventListener('ended', () => { if (srcKind === 'camera') toast('카메라 연결이 끊겼어요. 설정에서 카메라를 다시 켜 주세요.', 5000); updateChips(); });
+    onSourceReady();
+    listCameras(); buildCamControls();
+  }
+  async function useFile(file) {
+    stopSource();
+    fileURL = URL.createObjectURL(file); srcKind = 'file';
+    video.srcObject = null; video.loop = true; video.muted = true; video.src = fileURL;
+    await video.play().catch(() => {});
+    await waitForVideo();
+    onSourceReady();
+  }
+  function useDemo() {
+    stopSource();
+    if (!demo) demo = new Demo(demoCanvas);
+    demo.running = true; demo.nextAuto = 0; srcKind = 'demo';
+    onSourceReady();
+  }
+  function onSourceReady() {
+    video.hidden = srcKind === 'demo'; demoCanvas.hidden = srcKind !== 'demo';
+    const [sw, sh] = srcSize();
+    calib = null;
+    if (srcKind === 'camera') {
+      const saved = store.get('calib', null);
+      if (saved && saved.w === sw && saved.h === sh && saved.a > 0 && saved.b > 0) calib = Object.assign({}, saved);
+    }
+    roi = null; trackFails = 0; detector.reset(); tracker.reset(); perf.startAt = performance.now();
+    syncSourceUI(); fitStage(); updateChips(); updateCalibInfo();
+    startLoop();
+    if (!calib) scheduleAutoCalib(0);
+  }
+  function scheduleAutoCalib(attempt) {
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => {
+      if (calib || !srcKind) return;
+      if (!autoCalibrate(true) && attempt < 8) scheduleAutoCalib(attempt + 1);
+    }, attempt === 0 ? 700 : 1100);
+  }
+  async function listCameras() {
+    const sel = $('selCamera');
+    try {
+      const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'videoinput');
+      const cur = track && track.getSettings ? track.getSettings().deviceId : '';
+      sel.innerHTML = '';
+      devs.forEach((d, i) => { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || `카메라 ${i + 1}`; if (d.deviceId === cur) o.selected = true; sel.appendChild(o); });
+    } catch (e) { /* enumeration unavailable */ }
+  }
+  function buildCamControls() {
+    const box = $('camControls'); box.innerHTML = '';
+    if (!track || !track.getCapabilities) return;
+    let caps = {}, st = {};
+    try { caps = track.getCapabilities() || {}; st = track.getSettings ? track.getSettings() : {}; } catch (e) { return; }
+    const defs = [['zoom', '확대', null], ['exposureCompensation', '밝기 보정', null], ['exposureTime', '노출 시간', { exposureMode: 'manual' }], ['focusDistance', '초점 거리', { focusMode: 'manual' }]];
+    for (const [key, label, extra] of defs) {
+      const c = caps[key];
+      if (!c || typeof c.min !== 'number' || !(c.max > c.min)) continue;
+      const row = document.createElement('div'); row.className = 'field';
+      const id = 'cam_' + key, val = st[key] != null ? st[key] : c.min;
+      row.innerHTML = `<span>${label}</span><div class="range-row"><input type="range" id="${id}" min="${c.min}" max="${c.max}" step="${c.step || (c.max - c.min) / 100}" value="${val}"><output>${(+val).toFixed(1)}</output></div>`;
+      box.appendChild(row);
+      const inp = row.querySelector('input'), out = row.querySelector('output');
+      inp.addEventListener('input', () => {
+        out.textContent = (+inp.value).toFixed(1);
+        const cons = Object.assign({}, extra || {}); cons[key] = +inp.value;
+        track.applyConstraints({ advanced: [cons] }).catch(() => toast('이 카메라는 해당 설정을 바꿀 수 없어요'));
+      });
+    }
+    if (caps.exposureMode && caps.exposureMode.includes && caps.exposureMode.includes('continuous') && box.children.length) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-quiet'; b.textContent = '노출·초점 자동으로';
+      b.onclick = () => track.applyConstraints({ advanced: [{ exposureMode: 'continuous', focusMode: 'continuous' }] }).then(buildCamControls).catch(() => {});
+      box.appendChild(b);
+    }
+  }
+
+  /* ================= calibration ================= */
+  function setCalib(c, keepRoi) {
+    calib = c;
+    if (c && srcKind === 'camera') store.set('calib', c);
+    if (!keepRoi) roi = null;
+    updateCalibInfo(); updateChips();
+  }
+  function autoCalibrate(quiet) {
+    const [sw, sh] = srcSize();
+    if (!sw || !sh || (srcKind !== 'demo' && video.readyState < 2)) return false;
+    const k = Math.min(1, 640 / Math.max(sw, sh)), cw = Math.round(sw * k), ch = Math.round(sh * k);
+    calCanvas.width = cw; calCanvas.height = ch;
+    try { calCtx.drawImage(srcEl(), 0, 0, cw, ch); } catch (e) { return false; }
+    const r = detectTarget(calCtx.getImageData(0, 0, cw, ch), null);
+    if (!r) {
+      if (!quiet) toast('검정 원을 찾지 못했어요. 과녁이 화면 가운데 오게 하거나 직접 조정해 주세요.', 4000);
+      updateCalibInfo(true);
+      return false;
+    }
+    const kx = sw / cw, ky = sh / ch;
+    trackFails = 0;
+    setCalib({ cx: r.cx * kx, cy: r.cy * ky, a: (r.a * (kx + ky)) / 2, b: (r.b * (kx + ky)) / 2, theta: r.theta, w: sw, h: sh, manual: false, q: +r.score.toFixed(3) });
+    if (!quiet) toast('과녁을 찾았어요');
+    return true;
+  }
+  function computeROI(sw, sh) {
+    if (!calib) return { x: 0, y: 0, w: sw, h: sh };
+    const bb = ellBBox(calib, 2.75);
+    const x0 = clamp(Math.floor(bb.x0), 0, sw - 16), y0 = clamp(Math.floor(bb.y0), 0, sh - 16);
+    const x1 = clamp(Math.ceil(bb.x1), x0 + 16, sw), y1 = clamp(Math.ceil(bb.y1), y0 + 16, sh);
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+  // keep following the paper if it shifts a little (runs every ~1.2 s, between flashes)
+  function trackTarget(kx, ky) {
+    trackRuns++;
+    const pw = proc.width, ph = proc.height, k = Math.min(1, 260 / Math.max(pw, ph));
+    const w = Math.max(24, Math.round(pw * k)), h = Math.max(24, Math.round(ph * k));
+    small.width = w; small.height = h;
+    sctx.drawImage(proc, 0, 0, w, h);
+    const fx = kx * (pw / w), fy = ky * (ph / h);
+    const hint = { cx: (calib.cx - roi.x) / fx, cy: (calib.cy - roi.y) / fy, r: Math.max(3, (calib.a / fx) * 0.3) };
+    const r = detectTarget(sctx.getImageData(0, 0, w, h), hint);
+    const fail = () => { trackFails++; updateChips(); };
+    if (!r) return fail();
+    const nc = { cx: roi.x + r.cx * fx, cy: roi.y + r.cy * fy, a: (r.a * (fx + fy)) / 2, b: (r.b * (fx + fy)) / 2, theta: r.theta };
+    const ratio = (nc.a + nc.b) / (calib.a + calib.b), shift = Math.hypot(nc.cx - calib.cx, nc.cy - calib.cy) / calib.a;
+    if (ratio < 0.8 || ratio > 1.25 || shift > 0.3) return fail();
+    trackFails = 0;
+    const m0 = ellToMat(calib), m1 = ellToMat(nc), mix = shift > 0.03 || Math.abs(ratio - 1) > 0.03 ? 0.85 : 0.35; // real move: follow; jitter: smooth
+    const e = matToEll([0, 1, 2].map((i) => m0[i] * (1 - mix) + m1[i] * mix), calib.cx * (1 - mix) + nc.cx * mix, calib.cy * (1 - mix) + nc.cy * mix);
+    setCalib(Object.assign({}, calib, e), true);
+    const [sw, sh] = srcSize(), need = ellBBox(calib, 2.55);
+    if (Math.max(0, need.x0) < roi.x - 1 || Math.max(0, need.y0) < roi.y - 1 || Math.min(sw, need.x1) > roi.x + roi.w + 1 || Math.min(sh, need.y1) > roi.y + roi.h + 1) roi = null;
+  }
+
+  /* ================= frame loop ================= */
+  // Tier B of the detector only looks inside the black zone (+15 %), in processed-image pixels.
+  let zoneKey = '';
+  function updateZone(pw, ph, kx, ky) {
+    if (!calib) { if (zoneKey) { zoneKey = ''; detector.setZone(null, null); } return; }
+    const hr = hitRho() * 1.15;
+    const key = [roi.x, roi.y, roi.w, roi.h, pw, ph, Math.round(calib.cx), Math.round(calib.cy), Math.round(calib.a), Math.round(calib.b), calib.theta.toFixed(2), hr.toFixed(3)].join('|');
+    if (key === zoneKey) return;
+    zoneKey = key;
+    const mask = new Uint8Array(pw * ph), bb = ellBBox(calib, hr);
+    const c = Math.cos(calib.theta), sn = Math.sin(calib.theta), ia = 1 / calib.a, ib = 1 / calib.b, lim = hr * hr;
+    const yA = clamp(Math.floor((bb.y0 - roi.y) / ky) - 1, 1, ph - 2), yB = clamp(Math.ceil((bb.y1 - roi.y) / ky) + 1, 1, ph - 2);
+    const xA = clamp(Math.floor((bb.x0 - roi.x) / kx) - 1, 1, pw - 2), xB = clamp(Math.ceil((bb.x1 - roi.x) / kx) + 1, 1, pw - 2);
+    let x0 = pw, y0 = ph, x1 = -1, y1 = -1;
+    for (let y = yA; y <= yB; y++) {
+      const dy = roi.y + (y + 0.5) * ky - calib.cy;
+      for (let x = xA; x <= xB; x++) {
+        const dx = roi.x + (x + 0.5) * kx - calib.cx, u = (dx * c + dy * sn) * ia, v = (-dx * sn + dy * c) * ib;
+        if (u * u + v * v <= lim) {
+          mask[y * pw + x] = 1;
+          if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 < x0) detector.setZone(null, null);
+    else detector.setZone(mask, { x0, y0, x1, y1 });
+  }
+  function startLoop() {
+    const token = ++loopToken;
+    if (srcKind === 'demo') {
+      let last = 0;
+      const step = (t) => {
+        if (token !== loopToken) return;
+        if (t - last >= 31) { last = t; demo.render(t); onFrame(t); }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    } else if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+      const cb = () => { if (token !== loopToken) return; onFrame(performance.now()); video.requestVideoFrameCallback(cb); };
+      video.requestVideoFrameCallback(cb);
+    } else {
+      let lastTime = -1;
+      const step = (t) => {
+        if (token !== loopToken) return;
+        if (video.readyState >= 2 && video.currentTime !== lastTime) { lastTime = video.currentTime; onFrame(t); }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+  }
+  function onFrame(t) {
+    const [sw, sh] = srcSize();
+    if (!sw || !sh || (srcKind !== 'demo' && video.readyState < 2)) return;
+    if (calib && (calib.w !== sw || calib.h !== sh)) {
+      if (Math.abs(calib.w / calib.h - sw / sh) < 0.01) { const k = sw / calib.w; calib = Object.assign({}, calib, { cx: calib.cx * k, cy: calib.cy * k, a: calib.a * k, b: calib.b * k, w: sw, h: sh }); }
+      else { calib = null; scheduleAutoCalib(0); }
+      roi = null; fitStage(); updateCalibInfo();
+    }
+    if (!roi) { roi = computeROI(sw, sh); detector.reset(); }
+    const t0 = performance.now();
+    const k = Math.min(1, S.procSize / Math.max(roi.w, roi.h));
+    const pw = Math.max(8, Math.round(roi.w * k)), ph = Math.max(8, Math.round(roi.h * k));
+    if (proc.width !== pw || proc.height !== ph) { proc.width = pw; proc.height = ph; detector.reset(); }
+    try { pctx.drawImage(srcEl(), roi.x, roi.y, roi.w, roi.h, 0, 0, pw, ph); } catch (e) { return; }
+    const kx = roi.w / pw, ky = roi.h / ph;
+    updateZone(pw, ph, kx, ky);
+    const b = detector.process(pctx.getImageData(0, 0, pw, ph));
+    const blob = b ? { x: roi.x + b.x * kx, y: roi.y + b.y * ky, energy: b.energy, area: b.area, peak: b.peak, tier: b.tier || 'A', z: b.z || 0 } : null;
+    tracker.update(blob, t);
+    if (blob) lastSeenT = t;
+    if (window.LT_DEBUG) { frameLog.push({ t: Math.round(t), pk: +detector.peak.toFixed(2), pz: +(detector.peakZ || 0).toFixed(2), q: detector.frame <= (detector.quietUntil || 0), b: blob ? blob.tier + Math.round(blob.z || 0) : '', st: tracker.state, zk: zoneKey.length }); if (frameLog.length > 1200) frameLog.shift(); }
+    meterVal = Math.max(detector.peak, detector.peakZ || 0, meterVal * 0.88);
+    if (calib && S.autoTrack && !calib.manual && t - lastTrack > 1200 && t - lastSeenT > 300 && tracker.state === 'ready') { lastTrack = t; trackTarget(kx, ky); }
+    const dt = t - perf.lastT; perf.lastT = t; perf.frames++;
+    if (dt > 0 && dt < 1000) perf.fps = perf.fps ? perf.fps * 0.9 + (1000 / dt) * 0.1 : 1000 / dt;
+    perf.procMs = perf.procMs * 0.9 + (performance.now() - t0) * 0.1;
+  }
+
+  /* ================= shots & game ================= */
+  function shotPayload(ev) {
+    return { hit: ev.hit, score: ev.score, rho: ev.rho == null ? null : +ev.rho.toFixed(3), x: +ev.ux.toFixed(3), y: +ev.uy.toFixed(3), frames: ev.frames };
+  }
+  const seriesPayload = () => ({ hits: game.hits, shots: game.shots, need: S.hitsNeeded, elapsedMs: Math.round((game.tEnd || performance.now()) - (game.t0 || performance.now())) });
+
+  function handleShot(blob, t, frames) {
+    const ev = { t, x: blob.x, y: blob.y, frames, rho: null, score: null, hit: false, ux: 0, uy: 0, tier: blob.tier || 'A', z: blob.z || 0 };
+    if (calib) {
+      ev.rho = ellRho(calib, blob.x, blob.y);
+      const u = ellToUnit(calib, blob.x, blob.y); ev.ux = u[0]; ev.uy = u[1];
+      ev.score = ringScore(ev.rho); ev.hit = ev.rho <= hitRho();
+    }
+    recent.push(ev); if (recent.length > 40) recent.shift();
+    allShots.push(ev); if (allShots.length > 2000) allShots.shift();
+    if (mode === 'setup') {
+      test.count++; if (calib) { if (ev.hit) test.hits++; else test.misses++; }
+      test.frames = frames; test.tier = ev.tier; test.z = ev.z; renderTest();
+      if (ev.hit) Sound.hit(); else if (S.missSound) Sound.miss();
+      emit('test-shot', { shot: shotPayload(ev) });
+      return;
+    }
+    if (!calib) { toast('과녁이 아직 설정되지 않았어요. 설정에서 과녁을 맞춰 주세요.', 3500); return; }
+    gameShot(ev);
+  }
+  function gameShot(ev) {
+    if (game.phase === 'clear' || game.phase === 'timeout') return;
+    if (game.phase === 'ready') { game.phase = 'running'; game.t0 = ev.t; emit('start', {}); }
+    game.shots++; game.list.push(ev);
+    if (ev.hit) { game.hits++; flash(); Sound.hit(); } else if (S.missSound) Sound.miss();
+    renderLEDs(ev.hit ? game.hits - 1 : -1); renderStats(); drawShotMap();
+    emit('shot', { shot: shotPayload(ev), series: seriesPayload() });
+    if (game.hits >= S.hitsNeeded) finish('clear', ev.t);
+  }
+  function finish(kind, t) {
+    game.phase = kind; game.tEnd = t;
+    if (kind === 'clear') Sound.clear(); else Sound.timeout();
+    showResult(kind);
+    if (!attract) {
+      log.unshift({ at: Date.now(), lane: S.lane, result: kind, time: +((game.tEnd - game.t0) / 1000).toFixed(1), hits: game.hits, shots: game.shots, src: srcKind });
+      if (log.length > 300) log.length = 300;
+      store.set('log', log); renderLog();
+    }
+    emit(kind, { series: seriesPayload() });
+    const delay = attract ? 3 : S.resetDelay;
+    clearTimeout(game.timer); game.resetAt = 0;
+    if (delay > 0) { game.resetAt = performance.now() + delay * 1000; game.timer = setTimeout(() => gameReset(), delay * 1000); }
+  }
+  function gameReset(silent) {
+    clearTimeout(game.timer);
+    Object.assign(game, { phase: 'ready', hits: 0, shots: 0, t0: 0, tEnd: 0, list: [], resetAt: 0 });
+    $('result').hidden = true;
+    renderLEDs(-1); renderStats(); drawShotMap();
+    if (!silent) emit('reset', {});
+  }
+  function tickGame(t) {
+    if (game.phase === 'running' && S.timeLimit > 0 && t - game.t0 >= S.timeLimit * 1000) finish('timeout', game.t0 + S.timeLimit * 1000);
+    const ms = game.phase === 'running' ? t - game.t0 : game.phase === 'ready' ? 0 : game.tEnd - game.t0;
+    $('statTime').textContent = (Math.max(0, ms) / 1000).toFixed(1);
+    const warn = game.phase === 'running' && S.timeLimit > 0 && S.timeLimit * 1000 - ms < 10000;
+    if (warn) $('statTimeBox').setAttribute('data-warn', ''); else $('statTimeBox').removeAttribute('data-warn');
+    if (!$('result').hidden) {
+      const left = game.resetAt ? Math.max(0, Math.ceil((game.resetAt - t) / 1000)) : 0;
+      $('resultHint').textContent = game.resetAt ? `${left}초 뒤 자동으로 다시 시작 · 화면을 누르면 바로 시작` : '화면을 누르면 다시 시작';
+    }
+    $('prompt').textContent = game.phase === 'ready' ? (srcKind && !calib && srcKind !== 'demo' ? '설정에서 과녁을 먼저 맞춰 주세요' : '첫 발을 쏘면 시간이 시작돼요') : game.phase === 'running' ? `${S.hitsNeeded - game.hits}발 남음` : '';
+  }
+
+  /* ================= rendering ================= */
+  function buildLEDs() {
+    const box = $('leds'), n = S.hitsNeeded;
+    box.innerHTML = '';
+    for (let i = 0; i < n; i++) { const d = document.createElement('div'); d.className = 'led'; d.innerHTML = `<span class="led-num">${i + 1}</span>`; box.appendChild(d); }
+    const vw = 86 / (n + 0.18 * (n - 1));
+    document.documentElement.style.setProperty('--led-size', `min(${vw.toFixed(2)}vw, 30vh, 210px)`);
+    renderLEDs(-1);
+  }
+  function renderLEDs(pop) {
+    const leds = $('leds').children;
+    for (let i = 0; i < leds.length; i++) leds[i].classList.toggle('on', i < game.hits);
+    if (pop >= 0 && leds[pop]) { const el = leds[pop]; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+    $('leds').setAttribute('aria-label', `명중 ${game.hits} / ${S.hitsNeeded}`);
+  }
+  function renderStats() {
+    $('statHits').textContent = game.hits; $('statNeed').textContent = S.hitsNeeded; $('statShots').textContent = game.shots;
+    $('statLimit').textContent = S.timeLimit > 0 ? `/${S.timeLimit}초` : '초';
+    $('laneNo').textContent = S.lane; $('setupLane').textContent = S.lane;
+  }
+  function showResult(kind) {
+    const el = $('result'); el.dataset.kind = kind; el.hidden = false;
+    const secs = ((game.tEnd - game.t0) / 1000).toFixed(1);
+    $('resultTitle').textContent = kind === 'clear' ? 'CLEAR' : 'TIME';
+    $('resultSub').textContent = kind === 'clear' ? `${secs}초 · ${game.shots}발 중 ${game.hits}발 명중` : `${S.timeLimit}초 종료 · ${game.shots}발 중 ${game.hits}발 명중`;
+  }
+  function flash() {
+    const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+    clearTimeout(flash.t); flash.t = setTimeout(() => f.classList.remove('go'), 450);
+  }
+  function toast(msg, ms) {
+    const el = $('toast'); el.textContent = msg; el.hidden = false;
+    clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, ms || 2600);
+  }
+  function setChip(id, state, text) { const el = $(id); el.dataset.state = state; el.lastElementChild.textContent = text; }
+  function updateChips() {
+    const live = srcKind && performance.now() - perf.lastT < 1500;
+    if (!srcKind) setChip('chipSrc', 'idle', '입력 없음');
+    else if (srcKind === 'demo') setChip('chipSrc', 'demo', '데모');
+    else if (srcKind === 'file') setChip('chipSrc', live ? 'ok' : 'warn', '영상 파일');
+    else setChip('chipSrc', live && track && track.readyState === 'live' ? 'ok' : 'bad', live ? '카메라' : '카메라 멈춤');
+    if (!calib) setChip('chipTarget', srcKind ? 'bad' : 'idle', '과녁 없음');
+    else if (trackFails >= 3) setChip('chipTarget', 'warn', '과녁 확인');
+    else setChip('chipTarget', 'ok', '과녁');
+  }
+  function updateCalibInfo(failed) {
+    const el = $('calibInfo');
+    if (!calib) { el.textContent = failed ? '검정 원을 찾지 못했어요. 과녁이 화면에 크게, 가운데 오도록 놓고 자동 인식을 다시 눌러 보세요.' : '아직 과녁을 찾지 않았어요'; return; }
+    el.textContent = `중심 ${calib.cx.toFixed(0)}, ${calib.cy.toFixed(0)} · 검정 원 ${(calib.a * 2).toFixed(0)}×${(calib.b * 2).toFixed(0)}px · ${calib.manual ? '직접 조정' : '자동 인식'}`;
+  }
+  function renderTest() {
+    $('testCount').textContent = test.count; $('testHits').textContent = test.hits; $('testMiss').textContent = test.misses;
+    $('testDur').textContent = test.count ? `${test.frames}프레임` : '-';
+    $('testSig').textContent = !test.count ? '마지막 발의 신호 세기가 여기에 나와요.' : test.tier === 'B'
+      ? `마지막 발: 약한 빛으로 판정 · 잡음의 ${test.z.toFixed(1)}배 (6배 아래면 그늘·초점 조절을 권해요)`
+      : '마지막 발: 또렷한 빛으로 판정';
+  }
+  function renderMeter() {
+    const v = clamp(meterVal / 2, 0, 1), f = $('meterFill');
+    f.style.width = (v * 100).toFixed(1) + '%'; f.classList.toggle('over', meterVal >= 1);
+  }
+  function fmtClock(ts) { const d = new Date(ts); return [d.getHours(), d.getMinutes(), d.getSeconds()].map((v) => String(v).padStart(2, '0')).join(':'); }
+  function renderLog() {
+    const body = $('logBody'); body.innerHTML = '';
+    if (!log.length) { body.innerHTML = '<tr><td colspan="5" style="color:var(--ink-3)">아직 기록이 없어요. 5발을 다 맞히거나 시간이 끝나면 여기에 쌓여요.</td></tr>'; return; }
+    for (const r of log.slice(0, 60)) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${fmtClock(r.at)}</td><td>${r.lane}</td><td class="${r.result === 'clear' ? 'ok' : 'no'}">${r.result === 'clear' ? 'CLEAR' : '시간 초과'}</td><td>${r.time.toFixed(1)}초</td><td>${r.hits}/${r.shots}</td>`;
+      body.appendChild(tr);
+    }
+  }
+  function logCSV() {
+    const rows = [['date', 'time', 'lane', 'result', 'seconds', 'hits', 'shots']];
+    for (const r of log) { const d = new Date(r.at); rows.push([d.toISOString().slice(0, 10), fmtClock(r.at), r.lane, r.result, r.time, r.hits, r.shots]); }
+    return rows.map((r) => r.join(',')).join('\n');
+  }
+
+  function drawShotMap() {
+    const cv = $('shotMap'), r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    const g = cv.getContext('2d'); g.clearRect(0, 0, W, H);
+    const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 / 2.62;
+    g.fillStyle = tokens.paper; g.beginPath(); g.arc(cx, cy, R * 2.5, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#060908'; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
+    g.lineWidth = Math.max(1, dpr * 0.8);
+    for (let n = 1; n <= 10; n++) {
+      if (n === 7) continue;
+      g.strokeStyle = n > 7 ? '#3d4541' : tokens['paper-line'];
+      g.beginPath(); g.arc(cx, cy, (R * (11 - n)) / 4, 0, Math.PI * 2); g.stroke();
+    }
+    const hr = hitRho();
+    if (Math.abs(hr - 1) > 1e-3) { g.setLineDash([5 * dpr, 4 * dpr]); g.strokeStyle = tokens.hit; g.lineWidth = 1.5 * dpr; g.beginPath(); g.arc(cx, cy, R * hr, 0, Math.PI * 2); g.stroke(); g.setLineDash([]); }
+    const dot = Math.max(3 * dpr, R * 0.13);
+    game.list.forEach((s) => {
+      const rr = Math.min(Math.hypot(s.ux, s.uy), 2.55), ang = Math.atan2(s.uy, s.ux);
+      const x = cx + Math.cos(ang) * rr * R, y = cy + Math.sin(ang) * rr * R;
+      g.beginPath(); g.arc(x, y, dot, 0, Math.PI * 2);
+      g.fillStyle = s.hit ? tokens.hit : tokens.miss; g.fill();
+      g.lineWidth = dpr; g.strokeStyle = '#000'; g.stroke();
+    });
+  }
+
+  function ellipsePath(g, e, r) { g.beginPath(); g.ellipse(e.cx, e.cy, Math.max(0.1, e.a * r), Math.max(0.1, e.b * r), e.theta, 0, Math.PI * 2); }
+  function handlesOf(e) {
+    const c = Math.cos(e.theta), s = Math.sin(e.theta);
+    return { c: [e.cx, e.cy], a: [e.cx + e.a * c, e.cy + e.a * s], b: [e.cx - e.b * s, e.cy + e.b * c] };
+  }
+  function drawOverlay(t) {
+    const r = stage.getBoundingClientRect();
+    if (r.width < 8) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
+    if (overlay.width !== W || overlay.height !== H) { overlay.width = W; overlay.height = H; }
+    const g = overlay.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+    const [sw] = srcSize();
+    if (!sw) return;
+    computeView();
+    const u = 1 / view.s, full = mode === 'setup';
+    g.setTransform(view.s * dpr, 0, 0, view.s * dpr, view.ox * dpr, view.oy * dpr);
+    if (full && roi && calib) { g.setLineDash([6 * u, 6 * u]); g.lineWidth = u; g.strokeStyle = rgba(tokens.ink, 0.35); g.strokeRect(roi.x, roi.y, roi.w, roi.h); g.setLineDash([]); }
+    if (calib) {
+      if (full) {
+        g.lineWidth = u; g.strokeStyle = rgba(tokens.amber, 0.4); g.setLineDash([3 * u, 4 * u]);
+        for (const rr of [0.25, 0.5, 0.75, 1.25, 1.5, 1.75, 2, 2.25, 2.5]) { ellipsePath(g, calib, rr); g.stroke(); }
+        g.setLineDash([]);
+      }
+      g.lineWidth = (full ? 2.5 : 1.5) * u; g.strokeStyle = tokens.amber; ellipsePath(g, calib, 1); g.stroke();
+      const hr = hitRho();
+      if (Math.abs(hr - 1) > 1e-3) { g.setLineDash([8 * u, 5 * u]); g.strokeStyle = tokens.hit; g.lineWidth = 2 * u; ellipsePath(g, calib, hr); g.stroke(); g.setLineDash([]); }
+      if (full) {
+        g.strokeStyle = tokens.amber; g.lineWidth = 1.5 * u; const cr = 7 * u;
+        g.beginPath(); g.moveTo(calib.cx - cr, calib.cy); g.lineTo(calib.cx + cr, calib.cy); g.moveTo(calib.cx, calib.cy - cr); g.lineTo(calib.cx, calib.cy + cr); g.stroke();
+      }
+      if (full && editMode) {
+        const h = handlesOf(calib);
+        g.strokeStyle = rgba(tokens.amber, 0.7); g.lineWidth = 1.5 * u;
+        g.beginPath(); g.moveTo(h.c[0], h.c[1]); g.lineTo(h.a[0], h.a[1]); g.moveTo(h.c[0], h.c[1]); g.lineTo(h.b[0], h.b[1]); g.stroke();
+        for (const key of ['c', 'a', 'b']) {
+          const [x, y] = h[key];
+          g.beginPath(); g.arc(x, y, 11 * u, 0, Math.PI * 2); g.fillStyle = rgba(tokens.bg, 0.55); g.fill();
+          g.lineWidth = 2.5 * u; g.strokeStyle = tokens.amber; g.stroke();
+        }
+      }
+    }
+    const life = full ? 20000 : 9000;
+    for (const s of recent) {
+      const age = t - s.t;
+      if (age > life || age < 0) continue;
+      const al = age < life - 1500 ? 1 : (life - age) / 1500;
+      const rr = (full ? 9 : 7) * u;
+      g.lineWidth = 2.5 * u;
+      if (!calib || s.hit) {
+        g.strokeStyle = rgba(calib ? tokens.hit : tokens.amber, al); g.fillStyle = rgba(calib ? tokens.hit : tokens.amber, al * 0.35);
+        g.beginPath(); g.arc(s.x, s.y, rr, 0, Math.PI * 2); g.fill(); g.stroke();
+      } else {
+        g.strokeStyle = rgba(tokens.miss, al);
+        g.beginPath(); g.moveTo(s.x - rr, s.y - rr); g.lineTo(s.x + rr, s.y + rr); g.moveTo(s.x + rr, s.y - rr); g.lineTo(s.x - rr, s.y + rr); g.stroke();
+      }
+      if (full && s.score != null) {
+        g.font = `600 ${12 * u}px ${getComputedStyle(document.body).fontFamily}`; g.fillStyle = rgba(tokens.ink, al);
+        g.fillText(s.score ? `${s.score}점` : '밖', s.x + rr + 3 * u, s.y - rr);
+      }
+    }
+  }
+
+  // The small inset (and setup, on request) zooms in on the target: the paper is often small in the frame.
+  function computeView() {
+    if (drag) return;
+    const [sw, sh] = srcSize(), W = stage.clientWidth, H = stage.clientHeight;
+    if (!sw || !sh || W < 2) return;
+    let s = W / sw, ox = 0, oy = 0;
+    if (calib && (mode !== 'setup' || setupZoom)) {
+      const bb = ellBBox(calib, 2.7);
+      const z = Math.min(W / (bb.x1 - bb.x0), H / (bb.y1 - bb.y0));
+      if (z > s) { s = z; ox = W / 2 - calib.cx * s; oy = H / 2 - calib.cy * s; }
+    }
+    view.s = s; view.ox = ox; view.oy = oy;
+    const key = [srcKind, W, H, s.toFixed(4), ox.toFixed(1), oy.toFixed(1)].join('|');
+    if (key === view.key) return;
+    view.key = key;
+    for (const el of [video, demoCanvas]) { el.style.width = sw * s + 'px'; el.style.height = sh * s + 'px'; el.style.left = ox + 'px'; el.style.top = oy + 'px'; }
+  }
+  function fitStage() {
+    const [sw, sh] = srcSize(), ar = sw && sh ? sw / sh : 16 / 9, slot = stage.parentElement;
+    if (!slot) return;
+    if (slot.id === 'pipSlot') {
+      slot.classList.toggle('off', !S.showPip);
+      const h = S.showPip ? slot.clientHeight || 120 : 4, w = Math.max(4, Math.round(h * ar));
+      stage.style.width = w + 'px'; stage.style.height = h + 'px'; slot.style.width = w + 'px';
+    } else {
+      const r = slot.getBoundingClientRect();
+      let w = r.width, h = w / ar;
+      if (h > r.height && r.height > 60) { h = r.height; w = h * ar; }
+      stage.style.width = Math.floor(w) + 'px'; stage.style.height = Math.floor(h) + 'px';
+    }
+    view.key = ''; computeView();
+  }
+  function resumeVideo() { if (srcKind && srcKind !== 'demo' && video.paused) video.play().catch(() => {}); }
+  function openSetup() {
+    mode = 'setup'; $('setup').hidden = false;
+    $('stageSlot').appendChild(stage); resumeVideo();
+    requestAnimationFrame(fitStage);
+    renderTest(); updateCalibInfo(); syncControls(); syncSourceUI(); renderLog();
+  }
+  function closeSetup() {
+    mode = 'board'; editMode = false; $('btnEdit').setAttribute('aria-pressed', 'false');
+    $('setup').hidden = true; $('copyBox').hidden = true;
+    $('pipSlot').appendChild(stage); resumeVideo();
+    requestAnimationFrame(() => { fitStage(); drawShotMap(); });
+    gameReset(true);
+    if (srcKind && srcKind !== 'demo' && !calib) toast('과녁이 아직 설정되지 않았어요', 3000);
+  }
+
+  /* ================= pointer: manual target fit + demo shooting ================= */
+  function evToSrc(e) {
+    const r = stage.getBoundingClientRect(), [sw] = srcSize();
+    if (!sw || r.width < 2) return null;
+    computeView();
+    return { x: (e.clientX - r.left - view.ox) / view.s, y: (e.clientY - r.top - view.oy) / view.s, k: view.s };
+  }
+  function pickHandle(p) {
+    if (!calib) return null;
+    const h = handlesOf(calib); let best = null, bd = 26 / p.k;
+    for (const key of ['a', 'b', 'c']) { const d = Math.hypot(p.x - h[key][0], p.y - h[key][1]); if (d < bd) { bd = d; best = key; } }
+    return best;
+  }
+  stage.addEventListener('pointerdown', (e) => {
+    if (mode !== 'setup') { openSetup(); return; }
+    const p = evToSrc(e);
+    if (!p) return;
+    if (editMode) {
+      const [sw, sh] = srcSize();
+      const hk = pickHandle(p);
+      if (hk) { drag = { kind: hk, start: p, orig: Object.assign({}, calib) }; }
+      else if (!calib) { setCalib({ cx: p.x, cy: p.y, a: sw * 0.07, b: sw * 0.07, theta: 0, w: sw, h: sh, manual: true }); return; }
+      else if (ellRho(calib, p.x, p.y) < 1.2) { drag = { kind: 'move', start: p, orig: Object.assign({}, calib) }; }
+      if (drag) { try { stage.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } e.preventDefault(); return; }
+    }
+    if (srcKind === 'demo' && demo) demo.shootAt(p.x, p.y);
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const p = evToSrc(e);
+    if (!p) return;
+    const o = drag.orig, c = Object.assign({}, calib, { manual: true });
+    if (drag.kind === 'move' || drag.kind === 'c') { c.cx = o.cx + p.x - drag.start.x; c.cy = o.cy + p.y - drag.start.y; }
+    else if (drag.kind === 'a') { const dx = p.x - o.cx, dy = p.y - o.cy; c.a = Math.max(4, Math.hypot(dx, dy)); c.theta = Math.atan2(dy, dx); }
+    else { c.b = Math.max(4, Math.abs((p.x - o.cx) * -Math.sin(o.theta) + (p.y - o.cy) * Math.cos(o.theta))); }
+    setCalib(c, true);
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    drag = null; roi = null;
+    if (S.autoTrack) { S.autoTrack = false; saveSettings(); $('chkTrack').checked = false; }
+    setCalib(calib);
+  };
+  stage.addEventListener('pointerup', endDrag);
+  stage.addEventListener('pointercancel', endDrag);
+
+  /* ================= controls ================= */
+  function syncSourceUI() {
+    document.querySelectorAll('.seg [data-src]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.src === srcKind)));
+    $('rowCamera').hidden = srcKind !== 'camera'; $('rowRes').hidden = srcKind !== 'camera';
+    if (srcKind !== 'camera') $('camControls').innerHTML = '';
+    const msg = $('stageMsg');
+    if (srcKind === 'demo') { msg.hidden = false; msg.textContent = '데모: 가상 과녁에 자동으로 쏩니다. 화면을 누르면 그 자리에 쏴요.'; }
+    else msg.hidden = true;
+  }
+  function syncControls() {
+    $('rngSens').value = S.sensitivity; $('outSens').textContent = S.sensitivity;
+    $('selColor').value = S.laserColor; $('chkTrack').checked = !!S.autoTrack;
+    $('numLane').value = S.lane; $('selMinScore').value = String(S.minScore);
+    $('rngTol').value = S.tolerance; $('outTol').textContent = (S.tolerance > 0 ? '+' : '') + S.tolerance + '%';
+    $('selLimit').value = String(S.timeLimit); if ($('selLimit').value !== String(S.timeLimit)) addOption($('selLimit'), S.timeLimit, S.timeLimit + '초');
+    $('selReset').value = String(S.resetDelay); $('selNeed').value = String(S.hitsNeeded);
+    $('chkSound').checked = !!S.sound; $('chkMissSound').checked = !!S.missSound; $('chkPip').checked = !!S.showPip;
+    $('selRes').value = S.resolution;
+  }
+  function addOption(sel, v, label) { const o = document.createElement('option'); o.value = String(v); o.textContent = label; sel.appendChild(o); sel.value = String(v); }
+  function applySettings(obj) {
+    if (!obj || typeof obj !== 'object') return;
+    for (const k of Object.keys(DEFAULTS)) {
+      if (!(k in obj)) continue;
+      const def = DEFAULTS[k], v = obj[k];
+      if (typeof def === 'number' && Number.isFinite(Number(v))) S[k] = Number(v);
+      else if (typeof def === 'boolean') S[k] = !!v;
+      else if (typeof def === 'string' && typeof v === 'string') S[k] = v;
+    }
+    S.hitsNeeded = clamp(Math.round(S.hitsNeeded), 1, 10); S.sensitivity = clamp(Math.round(S.sensitivity), 1, 10);
+    S.minScore = clamp(Math.round(S.minScore), 1, 10); S.lane = clamp(Math.round(S.lane), 1, 99);
+    saveSettings(); detector.configure(S.sensitivity, S.laserColor);
+    if ($('leds').children.length !== S.hitsNeeded) { buildLEDs(); gameReset(true); }
+    renderStats(); syncControls(); drawShotMap(); fitStage();
+  }
+  function bindControls() {
+    const sn = $('selNeed');
+    for (let i = 1; i <= 10; i++) { const o = document.createElement('option'); o.value = String(i); o.textContent = i === 5 ? '5발 (레이저런 규정)' : `${i}발`; sn.appendChild(o); }
+    const set = (k, v) => applySettings({ [k]: v });
+    $('rngSens').addEventListener('input', (e) => set('sensitivity', +e.target.value));
+    $('selColor').addEventListener('change', (e) => set('laserColor', e.target.value));
+    $('chkTrack').addEventListener('change', (e) => { set('autoTrack', e.target.checked); if (e.target.checked && calib) { calib.manual = false; lastTrack = 0; } });
+    $('numLane').addEventListener('change', (e) => set('lane', +e.target.value || 1));
+    sn.addEventListener('change', (e) => set('hitsNeeded', +e.target.value));
+    $('selMinScore').addEventListener('change', (e) => set('minScore', +e.target.value));
+    $('rngTol').addEventListener('input', (e) => set('tolerance', +e.target.value));
+    $('selLimit').addEventListener('change', (e) => set('timeLimit', +e.target.value));
+    $('selReset').addEventListener('change', (e) => set('resetDelay', +e.target.value));
+    $('chkSound').addEventListener('change', (e) => set('sound', e.target.checked));
+    $('chkMissSound').addEventListener('change', (e) => set('missSound', e.target.checked));
+    $('chkPip').addEventListener('change', (e) => set('showPip', e.target.checked));
+    $('selRes').addEventListener('change', (e) => { set('resolution', e.target.value); if (srcKind === 'camera') useCamera().catch((err) => toast(cameraErrorText(err), 5000)); });
+    $('selCamera').addEventListener('change', (e) => { set('deviceId', e.target.value); store.set('calib', null); useCamera().catch((err) => toast(cameraErrorText(err), 5000)); });
+    document.querySelectorAll('.seg [data-src]').forEach((b) => b.addEventListener('click', () => {
+      const k = b.dataset.src;
+      if (k === 'camera') useCamera().then(() => { attract = false; }).catch((err) => toast(cameraErrorText(err), 6000));
+      else if (k === 'file') $('fileInput2').click();
+      else { attract = false; useDemo(); }
+    }));
+    $('fileInput2').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) { attract = false; useFile(f); } e.target.value = ''; });
+    $('btnAuto').addEventListener('click', () => { if (!srcKind) return toast('먼저 영상 입력을 켜 주세요'); if (autoCalibrate(false) && editMode) toggleEdit(false); });
+    $('btnEdit').addEventListener('click', () => toggleEdit(!editMode));
+    $('btnZoom').addEventListener('click', () => {
+      setupZoom = !setupZoom; view.key = '';
+      $('btnZoom').setAttribute('aria-pressed', String(setupZoom));
+      $('btnZoom').textContent = setupZoom ? '카메라 전체 보기' : '과녁 크게 보기';
+      if (setupZoom && !calib) toast('과녁을 먼저 찾아야 크게 볼 수 있어요');
+    });
+    $('btnTestClear').addEventListener('click', () => { Object.assign(test, { count: 0, hits: 0, misses: 0, frames: 0 }); recent.length = 0; renderTest(); });
+    $('btnCopyLog').addEventListener('click', () => {
+      const csv = logCSV(), box = $('copyBox');
+      const fallback = () => { box.hidden = false; box.value = csv; box.focus(); box.select(); toast('아래 칸의 내용을 길게 눌러 복사해 주세요'); };
+      try { navigator.clipboard.writeText(csv).then(() => toast('기록을 복사했어요 (CSV)'), fallback); } catch (err) { fallback(); }
+    });
+    $('btnClearLog').addEventListener('click', (e) => {
+      const b = e.currentTarget;
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = '한 번 더 누르면 지워요'; setTimeout(() => { b.dataset.armed = ''; b.textContent = '기록 지우기'; }, 3000); return; }
+      b.dataset.armed = ''; b.textContent = '기록 지우기'; log = []; store.set('log', log); renderLog(); toast('기록을 지웠어요');
+    });
+    $('btnSetup').addEventListener('click', openSetup);
+    $('btnToBoard').addEventListener('click', closeSetup);
+    $('btnReset').addEventListener('click', () => gameReset());
+    $('result').addEventListener('click', () => gameReset());
+    $('btnFull').addEventListener('click', toggleFullscreen);
+    $('btnStartCamera').addEventListener('click', startWithCamera);
+    $('btnStartDemo').addEventListener('click', () => { attract = false; $('start').hidden = true; if (srcKind !== 'demo') useDemo(); gameReset(true); keepAwake(); });
+    $('fileInput').addEventListener('change', async (e) => {
+      const f = e.target.files && e.target.files[0]; e.target.value = '';
+      if (!f) return;
+      attract = false; $('start').hidden = true; await useFile(f); gameReset(true); openSetup();
+    });
+  }
+  function toggleEdit(on) {
+    editMode = on; $('btnEdit').setAttribute('aria-pressed', String(on));
+    if (on) toast(calib ? '가운데 점으로 옮기고, 끝의 두 손잡이로 크기와 기울기를 맞추세요' : '검정 원 가운데를 누르세요', 4000);
+  }
+  async function startWithCamera() {
+    Sound.unlock();
+    $('startNote').textContent = '카메라를 켜는 중…';
+    try {
+      await useCamera();
+      attract = false; $('start').hidden = true; $('startNote').textContent = '';
+      gameReset(true); keepAwake();
+      if (calib) toast('저장된 과녁 위치를 불러왔어요. 레이저 시험 후 표적 화면으로 넘어가세요.', 3500);
+      openSetup();
+    } catch (err) {
+      $('startNote').textContent = cameraErrorText(err);
+      if (!srcKind) useDemo();
+    }
+  }
+  function cameraErrorText(e) {
+    const n = e && e.name;
+    if (e && e.message === 'insecure') return '카메라는 https 주소에서만 켤 수 있어요. 배포한 https 주소로 열어 주세요.';
+    if (n === 'NotAllowedError' || n === 'SecurityError') return '카메라 권한이 막혀 있어요. 브라우저 설정에서 이 사이트의 카메라를 허용해 주세요. (claude.ai 미리보기에서는 카메라를 쓸 수 없어요. 데모나 영상 파일로 시험해 보세요.)';
+    if (n === 'NotFoundError' || n === 'OverconstrainedError') return '사용할 수 있는 카메라를 찾지 못했어요.';
+    if (n === 'NotReadableError' || n === 'AbortError') return '다른 앱이 카메라를 쓰고 있어요. 카메라 앱을 닫고 다시 시도해 주세요.';
+    return '카메라를 켜지 못했어요: ' + ((e && (e.message || e.name)) || '알 수 없는 오류');
+  }
+  function toggleFullscreen() {
+    const el = document.documentElement, isFs = document.fullscreenElement || document.webkitFullscreenElement;
+    try {
+      if (isFs) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      else {
+        const req = el.requestFullscreen || el.webkitRequestFullscreen;
+        if (!req) return toast('이 브라우저는 전체 화면을 지원하지 않아요. 홈 화면에 추가하면 전체 화면으로 쓸 수 있어요.', 4000);
+        const p = req.call(el);
+        if (p && p.catch) p.catch(() => toast('이 화면에서는 전체 화면을 쓸 수 없어요'));
+      }
+    } catch (e) { toast('이 화면에서는 전체 화면을 쓸 수 없어요'); }
+  }
+  let wakeLock = null;
+  async function keepAwake() {
+    try {
+      if (navigator.wakeLock && document.visibilityState === 'visible' && !wakeLock) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      }
+    } catch (e) { wakeLock = null; }
+  }
+
+  /* ================= integration bridge =================
+     Every event goes out as window 'lasertarget' CustomEvent, BroadcastChannel('laser-target') and, when the
+     page is embedded in an iframe, parent.postMessage. Commands come back the same way:
+     { target: 'laser-target', cmd: 'reset' | 'config' | 'state', settings? } */
+  const listeners = {};
+  let bc = null;
+  try { bc = new BroadcastChannel('laser-target'); bc.onmessage = (e) => handleCommand(e.data); } catch (e) { bc = null; }
+  function emit(type, data) {
+    if (attract) return;
+    const msg = Object.assign({ source: 'laser-target', version: 1, type, lane: S.lane, at: Date.now(), input: srcKind }, data || {});
+    events.push(msg); if (events.length > 500) events.shift();
+    (listeners[type] || []).concat(listeners['*'] || []).forEach((fn) => { try { fn(msg); } catch (e) { console.error(e); } });
+    try { window.dispatchEvent(new CustomEvent('lasertarget', { detail: msg })); } catch (e) { /* ignore */ }
+    try { if (window.parent !== window && !window.claude) window.parent.postMessage(msg, '*'); } catch (e) { /* ignore */ }
+    try { if (bc) bc.postMessage(msg); } catch (e) { /* ignore */ }
+  }
+  function getState() {
+    return { phase: game.phase, hits: game.hits, shots: game.shots, need: S.hitsNeeded, elapsedMs: game.t0 ? Math.round((game.tEnd || performance.now()) - game.t0) : 0, lane: S.lane, input: srcKind, calibrated: !!calib };
+  }
+  function handleCommand(m) {
+    if (!m || typeof m !== 'object' || m.target !== 'laser-target') return;
+    if (m.cmd === 'reset') gameReset();
+    else if (m.cmd === 'config') applySettings(m.settings);
+    else if (m.cmd === 'state') emit('state', { state: getState() });
+  }
+  window.addEventListener('message', (e) => handleCommand(e.data));
+  window.LaserTarget = {
+    version: '0.1.0',
+    on(type, fn) { (listeners[type] = listeners[type] || []).push(fn); return () => window.LaserTarget.off(type, fn); },
+    off(type, fn) { const a = listeners[type]; if (a) { const i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); } },
+    reset: () => gameReset(),
+    getState,
+    configure: applySettings,
+    simulateShot(ux, uy) {
+      if (!calib) return false;
+      const c = Math.cos(calib.theta), s = Math.sin(calib.theta);
+      const u = ux * c + uy * s, v = -ux * s + uy * c, dx = u * calib.a, dy = v * calib.b;
+      handleShot({ x: calib.cx + dx * c - dy * s, y: calib.cy + dx * s + dy * c, energy: 1 }, performance.now(), 1);
+      return true;
+    },
+    events,
+    _dbg: {
+      detectTarget, LaserDetector, autoCalibrate, openSetup, closeSetup, useDemo, useCamera, setCalib,
+      get calib() { return calib; }, get roi() { return roi; }, get perf() { return perf; }, get recent() { return recent; }, get allShots() { return allShots; }, get frameLog() { return frameLog; },
+      get game() { return game; }, get trackFails() { return trackFails; }, get trackRuns() { return trackRuns; }, get test() { return test; }, get detector() { return detector; }, get mode() { return mode; },
+    },
+  };
+
+  /* ================= boot ================= */
+  function uiLoop(t) {
+    try {
+      tickGame(t);
+      if (stage.isConnected && stage.offsetWidth > 6) drawOverlay(t);
+      if (mode === 'setup') renderMeter();
+      if (t - (uiLoop.info || 0) > 500) {
+        uiLoop.info = t; updateChips();
+        if (mode === 'setup') {
+          const [sw, sh] = srcSize();
+          const fr = track && track.getSettings ? track.getSettings().frameRate : null;
+          $('srcInfo').textContent = srcKind ? `${sw}×${sh}${fr ? ` · 카메라 ${Math.round(fr)}fps` : ''} · 처리 ${perf.fps.toFixed(0)}fps · ${perf.procMs.toFixed(1)}ms/장` : '입력 없음';
+        }
+      }
+    } catch (e) { console.error(e); }
+    requestAnimationFrame(uiLoop);
+  }
+  function boot() {
+    if (!window.LT_STANDALONE) $('previewNote').hidden = false;
+    else $('printLinks').hidden = false;
+    readTokens(); detector.configure(S.sensitivity, S.laserColor);
+    bindControls(); buildLEDs(); syncControls(); renderStats(); renderLog(); renderTest();
+    useDemo();
+    requestAnimationFrame(uiLoop);
+    window.addEventListener('resize', () => { fitStage(); drawShotMap(); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); resumeVideo(); } });
+    document.addEventListener('pointerdown', () => Sound.unlock(), { capture: true });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { readTokens(); drawShotMap(); fitStage(); });
+    if (urlAutostart === 'camera') startWithCamera();
+    else if (urlAutostart === 'demo') { attract = false; $('start').hidden = true; }
+  }
+  boot();
+})();
+</script>

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e1412">
+<title>과녁 만들기 · 레이저런 표적</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root {
+  /* Layout: the A4 sheet is the workspace (left, as large as fits); controls sit in a narrow column on the
+     right, stacked below on phones. Same dark range-display palette as the target app. */
+  --bg: #0e1412;
+  --surface: #151d1a;
+  --surface-2: #1e2824;
+  --line: #2c3833;
+  --ink: #e8eee9;
+  --ink-2: #a6b3ab;
+  --ink-3: #74837b;
+  --amber: #ffb347;
+  --amber-ink: #2a1800;
+  --hit: #3dff7e;
+  --paper: #ffffff;
+  --font-display: "Barlow Condensed", "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.5; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 16px;
+  border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
+  font-weight: 600; cursor: pointer; text-decoration: none; white-space: nowrap;
+}
+.btn:hover { border-color: var(--ink-3); }
+.btn-primary { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+.btn-quiet { background: transparent; }
+.btn[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
+
+.page { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.bar {
+  display: flex; align-items: center; gap: 12px; padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.bar h1 { margin: 0; font-size: 18px; font-weight: 700; }
+.bar .btn-primary { margin-left: auto; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 360px); min-height: 0; }
+.layout > * { min-height: 0; }
+.stage { display: grid; place-items: center; padding: 20px; min-height: 0; overflow: auto; }
+#sheet { display: block; height: min(calc(100vh - 110px), 1100px); width: auto; aspect-ratio: 210 / 297; max-width: 100%; background: var(--paper); border-radius: 4px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45); touch-action: none; user-select: none; }
+.handle { cursor: nwse-resize; }
+.handle.ne, .handle.sw { cursor: nesw-resize; }
+.panel { border-left: 1px solid var(--line); padding: 20px; padding-right: max(20px, env(safe-area-inset-right, 0px)); display: grid; gap: 22px; align-content: start; overflow: auto; }
+.readout { display: grid; gap: 2px; }
+.readout .k { font-size: 13px; color: var(--ink-2); letter-spacing: 0.08em; }
+.readout .v { font-family: var(--font-display); font-weight: 700; font-size: 56px; line-height: 1; font-variant-numeric: tabular-nums; }
+.readout .v small { font-size: 0.42em; color: var(--ink-3); margin-left: 4px; }
+.readout .sub { color: var(--ink-2); font-size: 14px; font-variant-numeric: tabular-nums; }
+.group { display: grid; gap: 10px; }
+.group h2 { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.seg button { min-height: 40px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-2); font-weight: 600; cursor: pointer; font-size: 14px; }
+.seg button[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); }
+.num { display: flex; align-items: center; gap: 8px; }
+.num input { width: 110px; min-height: 44px; padding: 6px 10px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); font-family: var(--font-mono); font-size: 16px; }
+.num span { color: var(--ink-2); }
+input[type="range"] { width: 100%; accent-color: var(--amber); }
+.switch { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.switch input { width: 20px; height: 20px; margin: 0; accent-color: var(--amber); }
+.hint { margin: 0; color: var(--ink-2); font-size: 14px; }
+.hint b { color: var(--ink); font-weight: 600; }
+@media (max-width: 860px) {
+  .page { height: auto; min-height: 100%; }
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  #sheet { height: auto; width: min(100%, 560px); }
+  .panel { border-left: 0; border-top: 1px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .readout .v { font-size: 44px; }
+}
+@page { size: A4 portrait; margin: 0; }
+@media print {
+  html, body { background: #fff !important; height: auto; }
+  .bar, .panel, .noprint { display: none !important; }
+  .page, .layout, .stage { display: block; height: auto; padding: 0; margin: 0; overflow: visible; }
+  #sheet { width: 210mm !important; height: 297mm !important; max-width: none; box-shadow: none; border-radius: 0; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="bar">
+    <a class="btn btn-quiet" href="./">← 표적 앱</a>
+    <h1>과녁 만들기</h1>
+    <button class="btn btn-primary" id="btnPrint" type="button">인쇄</button>
+  </header>
+  <main class="layout">
+    <div class="stage"><svg id="sheet" viewBox="0 0 210 297" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A4 과녁 미리보기"></svg></div>
+    <aside class="panel">
+      <div class="readout">
+        <span class="k">검정 원 지름</span>
+        <span class="v"><span id="outBlack">59.5</span><small>mm</small></span>
+        <span class="sub" id="outAll">전체 지름 148.8 mm</span>
+      </div>
+      <p class="hint">종이 위 과녁의 <b>모서리 손잡이</b>를 끌어서 크기를 바꾸세요. 숫자로 정확히 넣을 수도 있어요.</p>
+      <div class="group">
+        <h2>검정 원 지름 직접 입력</h2>
+        <div class="num"><input type="number" id="inBlack" min="20" max="196" step="0.5" inputmode="decimal"><span>mm</span></div>
+        <input type="range" id="rngBlack" min="20" max="196" step="0.5" aria-label="검정 원 지름">
+      </div>
+      <div class="group">
+        <h2>빠른 선택</h2>
+        <div class="row">
+          <button class="btn" type="button" data-preset="59.5">10m 규격 59.5</button>
+          <button class="btn" type="button" data-preset="100">연습용 100</button>
+          <button class="btn" type="button" data-preset="max">A4 가득</button>
+        </div>
+      </div>
+      <div class="group">
+        <h2>바깥 고리</h2>
+        <div class="seg" role="group" aria-label="바깥 고리 개수">
+          <button type="button" data-rings="1" aria-pressed="true">1~10점</button>
+          <button type="button" data-rings="4" aria-pressed="false">4~10점</button>
+          <button type="button" data-rings="7" aria-pressed="false">검정만</button>
+        </div>
+        <p class="hint">고리를 줄이면 같은 종이에 검정 원을 더 크게 넣을 수 있어요.</p>
+      </div>
+      <label class="switch"><input type="checkbox" id="chkNums" checked>고리 숫자 넣기</label>
+      <div class="group">
+        <h2>인쇄할 때</h2>
+        <p class="hint">인쇄 창에서 <b>실제 크기(100%)</b>, 여백 <b>없음</b>으로 고르세요. 인쇄한 뒤 아래쪽 50mm 눈금을 자로 재서 맞는지 확인하면 됩니다. 인쇄 창에서 PDF로 저장할 수도 있어요.</p>
+        <p class="hint">카메라가 검정 원을 한 덩어리로 보도록 검정 안의 선과 숫자는 회색으로 인쇄돼요.</p>
+      </div>
+    </aside>
+  </main>
+</div>
+<script>
+(() => {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const svg = $('sheet');
+  const PAGE_W = 210, PAGE_H = 297, CX = 105, CY = 148.5, R_OUT_MAX = 98, BLACK_MIN = 20;
+  const store = {
+    get() { try { return JSON.parse(localStorage.getItem('laserrun.targetMaker') || 'null'); } catch (e) { return null; } },
+    set(v) { try { localStorage.setItem('laserrun.targetMaker', JSON.stringify(v)); } catch (e) { /* storage blocked */ } },
+  };
+  const st = Object.assign({ black: 59.5, nMin: 1, nums: true }, store.get() || {});
+
+  const outerOf = (black, nMin) => (black / 2) * (11 - nMin) / 4;           // outermost drawn ring radius
+  const blackMax = (nMin) => Math.floor((R_OUT_MAX * 4 / (11 - nMin)) * 2 * 2) / 2; // in mm, 0.5 steps
+  const clampBlack = (v) => Math.max(BLACK_MIN, Math.min(blackMax(st.nMin), Math.round(v * 2) / 2));
+
+  function render() {
+    st.black = clampBlack(st.black);
+    const R = st.black / 2, nMin = st.nMin, Ro = outerOf(st.black, nMin), band = R / 4;
+    const out = [];
+    const t = (x, y, size, txt, opts = '') => out.push(`<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-size="${size.toFixed(2)}" ${opts}>${txt}</text>`);
+    out.push(`<rect width="${PAGE_W}" height="${PAGE_H}" fill="#fff"/>`);
+    out.push('<g font-family="Barlow Condensed, IBM Plex Sans KR, Arial Narrow, Arial, sans-serif">');
+    t(14, 16, 6.2, 'LASER RUN 표적', 'font-weight="700" fill="#111"');
+    t(14, 22.5, 3.6, `검정 원 지름 ${st.black.toFixed(1)} mm · 검정 원 = 명중(7점 이상)`, 'fill="#555"');
+    for (let n = nMin; n <= 6; n++) out.push(`<circle cx="${CX}" cy="${CY}" r="${(R * (11 - n) / 4).toFixed(3)}" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>`);
+    out.push(`<circle cx="${CX}" cy="${CY}" r="${R.toFixed(3)}" fill="#000"/>`);
+    for (let n = 8; n <= 10; n++) out.push(`<circle cx="${CX}" cy="${CY}" r="${(R * (11 - n) / 4).toFixed(3)}" fill="none" stroke="#3c3c3c" stroke-width="0.35"/>`);
+    const fs = Math.min(4.2, band * 0.62);
+    if (st.nums && fs >= 1.6) {
+      for (let n = nMin; n <= 8; n++) {
+        const rm = R * (10.5 - n) / 4, col = n <= 6 ? '#2a2a2a' : '#4d4d4d';
+        for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) t(CX + dx * rm, CY + dy * rm + fs * 0.35, fs, String(n), `font-weight="600" fill="${col}" text-anchor="middle"`);
+      }
+    }
+    const y0 = 266;
+    out.push(`<line x1="14" y1="${y0}" x2="64" y2="${y0}" stroke="#111" stroke-width="0.5"/>`);
+    for (const x of [14, 39, 64]) out.push(`<line x1="${x}" y1="${y0 - 2}" x2="${x}" y2="${y0 + 2}" stroke="#111" stroke-width="0.5"/>`);
+    t(14, y0 + 7, 3.4, '50 mm · 인쇄 후 자로 재서 같은지 확인', 'fill="#333"');
+    t(196, y0 + 1, 3.4, '인쇄: 실제 크기(100%) · 무광 용지', 'fill="#333" text-anchor="end"');
+    t(196, y0 + 7, 3.4, '종이가 휘지 않게 판에 붙여 주세요', 'fill="#333" text-anchor="end"');
+    out.push('</g>');
+    // editing aids (not printed): the box around the whole target and its four corner handles
+    out.push('<g class="noprint">');
+    out.push(`<rect x="${CX - Ro}" y="${CY - Ro}" width="${2 * Ro}" height="${2 * Ro}" fill="none" stroke="#ffb347" stroke-width="0.6" stroke-dasharray="2.5 2"/>`);
+    for (const [k, sx, sy] of [['nw', -1, -1], ['ne', 1, -1], ['sw', -1, 1], ['se', 1, 1]]) {
+      const x = CX + sx * Ro, y = CY + sy * Ro;
+      out.push(`<g class="handle ${k}" data-h="${k}"><circle cx="${x}" cy="${y}" r="7" fill="transparent"/><circle cx="${x}" cy="${y}" r="3.2" fill="#ffb347" stroke="#2a1800" stroke-width="0.6"/></g>`);
+    }
+    const ly = Math.min(CY + Ro + 7, 258);
+    out.push(`<text x="${CX}" y="${ly}" font-size="4" font-family="JetBrains Mono, monospace" fill="#b26b00" text-anchor="middle">검정 ${st.black.toFixed(1)} mm</text>`);
+    out.push('</g>');
+    svg.innerHTML = out.join('');
+    $('outBlack').textContent = st.black.toFixed(1);
+    $('outAll').textContent = `전체 지름 ${(2 * Ro).toFixed(1)} mm · ${nMin === 7 ? '검정 원만' : nMin + '~10점 고리'}`;
+    if (document.activeElement !== $('inBlack')) $('inBlack').value = st.black.toFixed(1);
+    $('rngBlack').max = String(blackMax(nMin)); $('inBlack').max = String(blackMax(nMin));
+    $('rngBlack').value = String(st.black);
+    document.querySelectorAll('[data-rings]').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.rings === nMin)));
+    $('chkNums').checked = st.nums;
+    store.set(st);
+  }
+
+  // dragging a corner: the target stays centred, its outer edge follows the pointer
+  let dragging = false;
+  const toMM = (e) => { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
+  svg.addEventListener('pointerdown', (e) => {
+    if (!e.target.closest('.handle')) return;
+    dragging = true; svg.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const p = toMM(e), Ro = Math.max(Math.abs(p.x - CX), Math.abs(p.y - CY));
+    st.black = clampBlack((Ro * 4 / (11 - st.nMin)) * 2);
+    render();
+  });
+  const stop = () => { dragging = false; };
+  svg.addEventListener('pointerup', stop); svg.addEventListener('pointercancel', stop);
+
+  $('inBlack').addEventListener('change', (e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) { st.black = v; render(); } });
+  $('rngBlack').addEventListener('input', (e) => { st.black = +e.target.value; render(); });
+  document.querySelectorAll('[data-preset]').forEach((b) => b.addEventListener('click', () => {
+    st.black = b.dataset.preset === 'max' ? blackMax(st.nMin) : +b.dataset.preset; render();
+  }));
+  document.querySelectorAll('[data-rings]').forEach((b) => b.addEventListener('click', () => { st.nMin = +b.dataset.rings; render(); }));
+  $('chkNums').addEventListener('change', (e) => { st.nums = e.target.checked; render(); });
+  $('btnPrint').addEventListener('click', () => { try { window.print(); } catch (e) { /* print unavailable */ } });
+  render();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
+})();
+</script>
+</body>
+</html>

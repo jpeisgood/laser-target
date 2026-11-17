@@ -1,0 +1,17 @@
+import { createRequire } from 'node:module';
+import path from 'node:path';
+const { chromium } = createRequire(import.meta.url)('playwright');
+const scene = process.argv[2] || 'out_sun', target = +(process.argv[3] || 674);
+const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-video-capture=${path.resolve('tests/out/' + scene + '.mjpeg')}`] });
+const page = await browser.newPage({ viewport: { width: 1180, height: 820 } });
+await page.route(/fonts\./, (r) => r.abort());
+await page.addInitScript(() => { window.LT_DEBUG = true; });
+await page.goto('file://' + path.resolve('docs/index.html'));
+await page.click('#btnStartCamera');
+await page.waitForFunction(() => window.LaserTarget._dbg.calib, null, { timeout: 20000 });
+const t0 = await page.evaluate(() => window.LaserTarget._dbg.perf.startAt);
+await page.waitForFunction((end) => performance.now() > end, t0 + (target + 15) / 30 * 1000, { timeout: 60000, polling: 200 });
+const log = await page.evaluate(() => window.LaserTarget._dbg.frameLog.slice());
+const rows = log.map((r) => ({ ...r, f: ((r.t - t0) / 1000 * 30).toFixed(1) })).filter((r) => Math.abs(r.f - target) < 9);
+for (const r of rows) console.log(r.f.padStart(6), JSON.stringify(r));
+await browser.close();
