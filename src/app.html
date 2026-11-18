@@ -376,6 +376,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           <label class="switch"><input type="checkbox" id="chkFrontal">정면에서 찍어요 (과녁을 동그라미로 맞추기)</label>
           <label class="switch"><input type="checkbox" id="chkTrack">과녁이 조금 움직여도 따라가기</label>
           <p class="mono" id="calibInfo">아직 과녁을 찾지 않았어요</p>
+          <p class="hint" id="paperWarn" hidden style="color:var(--amber)">흰 종이가 하얗게 날아갈 만큼 밝아요. 흰 부분에 맞은 레이저는 카메라에 안 보일 수 있어요. 과녁 쪽 조명을 줄이거나 그늘지게 해 주세요.</p>
           <p class="hint" id="printLinks" hidden>인쇄용 과녁:
             <a href="target.html" target="_blank" rel="noopener" style="font-weight:600">크기 정해서 인쇄하기</a> ·
             <a href="target-a4-59.5mm.pdf" target="_blank" rel="noopener">59.5mm PDF</a> ·
@@ -455,6 +456,14 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           <textarea class="copybox" id="copyBox" readonly hidden aria-label="복사할 기록"></textarea>
         </section>
 
+        <section class="step">
+          <h3>진단</h3>
+          <p class="hint">쏘지 않았는데 잡히거나, 맞혔는데 안 잡히면 <b>이 칸을 캡처해서 보내 주세요.</b> 감지된 순간의 작은 사진(그때 · 바로 전)과 판정 이유가 최근 것부터 나와요.</p>
+          <p class="mono" id="diagInfo"></p>
+          <canvas id="diagCanvas" aria-label="최근 감지 기록"></canvas>
+          <div class="row"><button class="btn btn-quiet" id="btnDiagClear" type="button">진단 기록 지우기</button></div>
+        </section>
+
         <details class="adv">
           <summary>고급 설정 · 카메라와 입력</summary>
           <div class="body">
@@ -467,12 +476,18 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
             <label class="field" id="rowCamera"><span>카메라</span><select id="selCamera"></select></label>
             <label class="field" id="rowRes"><span>해상도</span>
               <select id="selRes">
-                <option value="1920x1080">1920×1080 (권장)</option>
-                <option value="1280x720">1280×720</option>
+                <option value="1280x720">1280×720 · 초당 60장 우선 (권장)</option>
+                <option value="1920x1080">1920×1080 · 멀리서 찍을 때</option>
                 <option value="640x480">640×480 (느린 기기)</option>
               </select>
             </label>
             <div id="camControls" style="display:grid;gap:10px"></div>
+            <label class="field"><span>레이저 방식</span>
+              <select id="selLaserMode">
+                <option value="blink">방아쇠를 당기면 깜빡 (기본)</option>
+                <option value="steady">당기는 동안 계속 켜짐</option>
+              </select>
+            </label>
             <label class="field"><span>레이저 색</span>
               <select id="selColor">
                 <option value="red">빨강</option>
@@ -525,7 +540,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   const DEFAULTS = {
     lane: 1, hitsNeeded: 5, minScore: 7, tolerance: 0, timeLimit: 0, resetDelay: 5,
     sensitivity: 6, laserColor: 'red', minInterval: 250, sound: true, missSound: false,
-    procSize: 480, autoTrack: true, deviceId: '', resolution: '1920x1080', roster: '', autoNext: true, shooterIdx: 0, frontal: true,
+    procSize: 480, autoTrack: true, deviceId: '', resolution: '1280x720', roster: '', autoNext: true, shooterIdx: 0, frontal: true, laserMode: 'blink',
   };
   const store = {
     get(k, d) { try { const v = localStorage.getItem('laserrun.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -534,7 +549,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   const saved = store.get('settings', {}) || {};
   if ((saved.v || 1) < 2) { delete saved.timeLimit; delete saved.sensitivity; } // v2: no time limit by default, new detector scale
   if ((saved.v || 1) < 3 && saved.resolution === '1280x720') delete saved.resolution; // v3: sharper default image
-  const S = Object.assign({}, DEFAULTS, saved, { v: 3 });
+  if ((saved.v || 1) < 4 && saved.resolution === '1920x1080') delete saved.resolution; // v4: frame rate first (60 fps at 720p)
+  const S = Object.assign({}, DEFAULTS, saved, { v: 4 });
   const saveSettings = () => store.set('settings', S);
   let urlAutostart = '';
   try {
@@ -837,17 +853,87 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       this.thr = SENS_THR[sv];
       this.redThr = Math.max(8, this.thr * 0.3);
       this.zLow = 7.5 - 0.4 * sv;          // sigmas needed in two frames in a row (sens 6: 5.1)
-      this.zSingle = this.zLow * 1.75;     // sigmas needed in a single frame       (sens 6: 8.9)
+      this.zSingle = this.zLow * 1.45;     // sigmas needed in a single frame       (sens 6: 7.4)
       this.floorB = 10 + 2 * (10 - sv);    // and never less than this much summed red excess
       this.mode = color;
       this.c0 = color === 'green' ? 1 : 0; this.c1 = color === 'green' ? 0 : 1; this.c2 = 2;
     }
-    reset() { this.bg = null; this.pending = []; this.zv = null; this.typVar = 0; }
+    reset() { this.bg = null; this.pending = []; this.zv = null; this.typVar = 0; this.prev = null; this.lastDet = []; }
     /** mask: Uint8Array(w*h) of processed pixels inside the black zone (+ margin); box: its bounds */
     setZone(mask, box) {
       const same = this.zoneBox && box && this.zoneBox.x0 === box.x0 && this.zoneBox.y0 === box.y0 && this.zoneBox.x1 === box.x1 && this.zoneBox.y1 === box.y1;
       this.zone = mask; this.zoneBox = box;
       if (!same) this.pending = [];
+    }
+    /* Brightness changes that are not a laser: auto exposure, white-balance drift, mains flicker bands
+       (rolling shutter). Measured per colour and per band of 8 rows, from pixels that barely changed,
+       and divided out before anything is compared. Returns the overall gain. */
+    gains(d, w, h) {
+      const bg = this.bg, n = w * h, nb = Math.ceil(h / 8);
+      let sc = 0, sb = 0;
+      for (let i = 0; i < n; i += 11) { const p = i << 2, q = i * 3; sc += d[p] + d[p + 1] + d[p + 2]; sb += bg[q] + bg[q + 1] + bg[q + 2]; }
+      const g0 = sb > 1 ? sc / sb : 1;
+      if (!this.rowG || this.rowG[0].length !== h) { this.bandC = new Float64Array(nb * 3); this.bandB = new Float64Array(nb * 3); this.bandG = new Float32Array(nb * 3); this.rowG = [new Float32Array(h), new Float32Array(h), new Float32Array(h)]; }
+      const C = this.bandC.fill(0), B = this.bandB.fill(0), G = this.bandG, pv = this.prev;
+      let bigN = 0;
+      for (let y = 0; y < h; y++) {
+        const k3 = (y >> 3) * 3;
+        for (let x = y & 1; x < w; x += 2) {
+          const i = y * w + x, p = i << 2, q = i * 3, r = d[p], g = d[p + 1], bl = d[p + 2], br = bg[q], bgg = bg[q + 1], bb = bg[q + 2];
+          if (pv && Math.abs(r + 2 * g + bl - (pv[p] + 2 * pv[p + 1] + pv[p + 2])) > 160) bigN++; // moving right now
+          if (Math.abs(r - br * g0) > 20 || Math.abs(g - bgg * g0) > 20 || Math.abs(bl - bb * g0) > 20) continue; // something real changed here
+          C[k3] += r; C[k3 + 1] += g; C[k3 + 2] += bl; B[k3] += br; B[k3 + 1] += bgg; B[k3 + 2] += bb;
+        }
+      }
+      const tc = [0, 0, 0], tb = [0, 0, 0];
+      for (let k = 0; k < nb; k++) for (let c = 0; c < 3; c++) { tc[c] += C[k * 3 + c]; tb[c] += B[k * 3 + c]; }
+      for (let k = 0; k < nb; k++) for (let c = 0; c < 3; c++) {
+        let sC = 0, sB = 0;
+        for (let j = Math.max(0, k - 1); j <= Math.min(nb - 1, k + 1); j++) { sC += C[j * 3 + c]; sB += B[j * 3 + c]; }
+        G[k * 3 + c] = sB > 2000 ? sC / sB : tb[c] > 1 ? tc[c] / tb[c] : g0;
+      }
+      for (let y = 0; y < h; y++) {
+        const fy = (y - 3.5) / 8, k0 = clamp(Math.floor(fy), 0, nb - 1), k1 = Math.min(nb - 1, k0 + 1), t = clamp(fy - k0, 0, 1);
+        for (let c = 0; c < 3; c++) this.rowG[c][y] = G[k0 * 3 + c] * (1 - t) + G[k1 * 3 + c] * t;
+      }
+      this.bigFrac = bigN / (n / 2); // share of pixels that changed a lot (luma > 40) since the previous frame
+      return g0;
+    }
+    /* Two checks that tell a blink from things that merely changed.
+       Moved: a laser only adds light. If pixels around the spot got darker since the previous frame,
+         something is moving right now (the paper, an edge, a reflection).
+       Old: a blink is new. Most of the spot's extra light must be absent in the previous frame; a slow
+         drift or a creeping reflection already looked like that one frame earlier.
+       A spot continuing last frame's detection (a blink lasting several frames) skips the second check. */
+    blobCheck(d, w, h, b) {
+      const pv = this.prev;
+      if (!pv) return 'ok';
+      const bg = this.bg, c0 = this.c0, c1 = this.c1, c2 = this.c2, G0 = this.rowG[c0], G1 = this.rowG[c1], G2 = this.rowG[c2];
+      const gR = this.rowG[0], gG = this.rowG[1], gB = this.rowG[2];
+      const x0 = Math.max(0, b.x0 - 3), x1 = Math.min(w - 1, b.x1 + 3), y0 = Math.max(0, b.y0 - 3), y1 = Math.min(h - 1, b.y1 + 3);
+      let pos = 0, neg = 0, red = 0, redNew = 0;
+      for (let y = y0; y <= y1; y++) {
+        const inY = y >= b.y0 - 1 && y <= b.y1 + 1;
+        for (let x = x0; x <= x1; x++) {
+          const i = y * w + x, p = i << 2, q = i * 3;
+          const yc = d[p] + 2 * d[p + 1] + d[p + 2], dn = (yc - (pv[p] + 2 * pv[p + 1] + pv[p + 2])) / 4;
+          if (inY && x >= b.x0 - 1 && x <= b.x1 + 1) {
+            const db = (yc - (bg[q] * gR[y] + 2 * bg[q + 1] * gG[y] + bg[q + 2] * gB[y])) / 4;
+            if (db > 0) pos += db;
+            // red excess (what a red laser adds and a moving grey edge does not) vs the background and vs last frame
+            const sb = d[p + c0] - bg[q + c0] * G0[y] - Math.max(d[p + c1] - bg[q + c1] * G1[y], d[p + c2] - bg[q + c2] * G2[y]);
+            if (sb > 0) {
+              red += sb;
+              const sp = d[p + c0] - pv[p + c0] - Math.max(d[p + c1] - pv[p + c1], d[p + c2] - pv[p + c2]);
+              if (sp > 0) redNew += sp < sb ? sp : sb;
+            }
+          } else if (dn < -10) neg += -dn - 10;
+        }
+      }
+      if (neg > 30 && neg > 0.5 * pos) return 'moved';
+      const cont = this.lastDet && this.lastDet.some((q) => Math.abs(q.x - b.x) <= 6 && Math.abs(q.y - b.y) <= 6);
+      if (!cont && red > 0 && redNew < 0.5 * red) return 'old';
+      return 'ok';
     }
     process(img) {
       const d = img.data, w = img.width, h = img.height, n = w * h;
@@ -858,13 +944,15 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         return null;
       }
       const bg = this.bg, mark = this.mark;
-      let sc = 0, sb = 0;
-      for (let i = 0; i < n; i += 11) { const p = i << 2, q = i * 3; sc += d[p] + d[p + 1] + d[p + 2]; sb += bg[q] + bg[q + 1] + bg[q + 2]; }
-      const gain = sb > 1 ? sc / sb : 1;
+      const gain = this.gains(d, w, h);
       this.gain = gain;
+      const gR = this.rowG[0], gG = this.rowG[1], gB = this.rowG[2];
+      const G0 = this.rowG[this.c0], G1 = this.rowG[this.c1], G2 = this.rowG[this.c2];
       if (this.warm > 0 || gain < 0.72 || gain > 1.38) {
         if (this.warm > 0) this.warm--;
         this.blend(d, n, 0.5); this.peak = 0;
+        if (!this.prev || this.prev.length !== d.length) this.prev = new Uint8ClampedArray(d.length);
+        this.prev.set(d); this.lastDet = [];
         return null;
       }
       // On bright paper red can only climb to 255, so the required rise shrinks with the headroom left;
@@ -873,24 +961,28 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       const minRise = Math.max(12, thr * 0.4), gate = minRise * 0.5;
       const cand = this.cand, cap = this.cap;
       let nc = 0, overflow = false, peak = 0;
-      for (let i = 0, p = 0, q = 0; i < n; i++, p += 4, q += 3) {
-        let v0, b0;
-        if (bright) { v0 = (d[p] + d[p + 1] + d[p + 2]) / 3; b0 = ((bg[q] + bg[q + 1] + bg[q + 2]) / 3) * gain; }
-        else { v0 = d[p + c0]; b0 = bg[q + c0] * gain; }
-        const d0 = v0 - b0;
-        if (d0 <= gate) continue;
-        if (!bright) {
-          const d1 = d[p + c1] - bg[q + c1] * gain, d2 = d[p + c2] - bg[q + c2] * gain;
-          if (!(d0 - (d1 > d2 ? d1 : d2) > redThr || (v0 >= 245 && b0 < 120))) continue;
+      for (let y = 0, i = 0; y < h; y++) {
+        const g0r = G0[y], g1r = G1[y], g2r = G2[y], rr = gR[y], rg = gG[y], rb = gB[y];
+        for (let x = 0; x < w; x++, i++) {
+          const p = i << 2, q = i * 3;
+          let v0, b0;
+          if (bright) { v0 = (d[p] + d[p + 1] + d[p + 2]) / 3; b0 = (bg[q] * rr + bg[q + 1] * rg + bg[q + 2] * rb) / 3; }
+          else { v0 = d[p + c0]; b0 = bg[q + c0] * g0r; }
+          const d0 = v0 - b0;
+          if (d0 <= gate) continue;
+          if (!bright) {
+            const d1 = d[p + c1] - bg[q + c1] * g1r, d2 = d[p + c2] - bg[q + c2] * g2r;
+            if (!(d0 - (d1 > d2 ? d1 : d2) > redThr || (v0 >= 245 && b0 < 120))) continue;
+          }
+          const room = 0.6 * (255 - b0), te = room < thr ? (room > minRise ? room : minRise) : thr;
+          const ratio = d0 / te;
+          if (ratio > peak) peak = ratio;
+          if (ratio > 1) { if (nc < cap) { cand[nc++] = i; mark[i] = 1; } else overflow = true; }
         }
-        const room = 0.6 * (255 - b0), te = room < thr ? (room > minRise ? room : minRise) : thr;
-        const ratio = d0 / te;
-        if (ratio > peak) peak = ratio;
-        if (ratio > 1) { if (nc < cap) { cand[nc++] = i; mark[i] = 1; } else overflow = true; }
       }
       this.peak = peak;
-      const blobs = [];
-      let best = null, valid = 0, big = overflow;
+      const blobs = [], accepted = [];
+      let best = null, valid = 0, big = overflow || this.bigFrac > 0.03;
       if (!overflow) {
         const st = this.stack;
         for (let k = 0; k < nc; k++) {
@@ -901,10 +993,10 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           while (sp > 0) {
             const i = st[--sp], x = i % w, y = (i - x) / w, p = i << 2, q = i * 3;
             let wt;
-            if (bright) wt = (d[p] + d[p + 1] + d[p + 2]) / 3 - ((bg[q] + bg[q + 1] + bg[q + 2]) / 3) * gain;
+            if (bright) wt = (d[p] + d[p + 1] + d[p + 2]) / 3 - (bg[q] * gR[y] + bg[q + 1] * gG[y] + bg[q + 2] * gB[y]) / 3;
             else {
-              wt = d[p + c0] - bg[q + c0] * gain;
-              const e1 = d[p + c1] - bg[q + c1] * gain, e2 = d[p + c2] - bg[q + c2] * gain;
+              wt = d[p + c0] - bg[q + c0] * G0[y];
+              const e1 = d[p + c1] - bg[q + c1] * G1[y], e2 = d[p + c2] - bg[q + c2] * G2[y];
               if (wt - (e1 > e2 ? e1 : e2) > redThr) red++;
             }
             area++; sw += wt; sx += wt * x; sy += wt * y; if (wt > pk) pk = wt;
@@ -928,6 +1020,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           if (Math.max(bw, bh) > 4 * Math.min(bw, bh) + 2) continue;
           if (b.area > 12 && b.area < 0.25 * bw * bh) continue; // thin arcs, e.g. a ring edge after a camera bump
           if (!bright && b.red < Math.max(1, b.area * 0.08)) continue; // a white flash with no red halo is not our laser
+          const chk = this.blobCheck(d, w, h, b);
+          if (chk !== 'ok') { if (chk === 'moved') this.moved = (this.moved || 0) + 1; else this.stale = (this.stale || 0) + 1; continue; }
+          accepted.push({ x: b.x, y: b.y });
           valid++;
           if (!best || b.energy > best.energy) best = b;
         }
@@ -936,7 +1031,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       for (let k = 0; k < nc; k++) mark[cand[k]] = 0;
       this.blobs = valid;
       // tier B only when tier A saw nothing: a strong flash also lights up a wide patch in tier B
-      const tb = !overflow && !bright && !best ? this.tierB(d, w, h, gain, big) : null;
+      const tb = !overflow && !bright && !best ? this.tierB(d, w, h, big) : null;
       if (!tb) { this.pending = []; this.peakZ = 0; }
       if (tb && tb.big) big = true;
       if (!best && tb && tb.best) best = tb.best;
@@ -962,13 +1057,17 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         bg[q] += (d[p] - bg[q]) * a; bg[q + 1] += (d[p + 1] - bg[q + 1]) * a; bg[q + 2] += (d[p + 2] - bg[q + 2]) * a;
       }
       for (const [x0, x1, y0, y1] of boxes) for (let y = y0; y <= y1; y++) skip.fill(0, y * w + x0, y * w + x1 + 1);
+      this.lastDet = tb && tb.blobs ? accepted.concat(tb.blobs.map((q) => ({ x: q.x, y: q.y }))) : accepted;
+      if (!this.prev || this.prev.length !== d.length) this.prev = new Uint8ClampedArray(d.length);
+      this.prev.set(d);
       return best;
     }
-    tierB(d, w, h, gain, calmBroken) {
+    tierB(d, w, h, calmBroken) {
       const n = w * h, zone = this.zone, zb = this.zoneBox;
       this.peakZ = 0;
       if (!zone || zone.length !== n || !zb) return null;
       const bg = this.bg, c0 = this.c0, c1 = this.c1, c2 = this.c2;
+      const G0 = this.rowG[c0], G1 = this.rowG[c1], G2 = this.rowG[c2];
       const ox = zb.x0 - 1, oy = zb.y0 - 1, bw = zb.x1 - zb.x0 + 3, bh = zb.y1 - zb.y0 + 3, m = bw * bh;
       if (!this.fs || this.fs.length !== m) {
         this.zs = new Float32Array(m); this.zr = new Float32Array(m); this.ht = new Float32Array(m); this.hr = new Float32Array(m);
@@ -981,10 +1080,10 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       const typ = this.typVar > 0 ? this.typVar : 400;
       const sdAt = (i) => Math.sqrt(zage[i] >= 12 ? zv[i] : Math.max(zv[i], typ)) * 1.1 + 1.5;
       for (let ly = 0; ly < bh; ly++) {
-        const y = oy + ly;
+        const y = oy + ly, g0r = G0[y], g1r = G1[y], g2r = G2[y];
         for (let lx = 0; lx < bw; lx++) {
           const i = y * w + ox + lx, p = i << 2, q = i * 3, k = ly * bw + lx;
-          const e0 = d[p + c0] - bg[q + c0] * gain, e1 = d[p + c1] - bg[q + c1] * gain, e2 = d[p + c2] - bg[q + c2] * gain;
+          const e0 = d[p + c0] - bg[q + c0] * g0r, e1 = d[p + c1] - bg[q + c1] * g1r, e2 = d[p + c2] - bg[q + c2] * g2r;
           zs[k] = e0 - (e1 > e2 ? e1 : e2); zr[k] = e0;
         }
       }
@@ -1002,7 +1101,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           if (f <= floorB || fr[k] < 0.6 * f) continue;
           const z = f / sdAt(i);
           if (z > peakZ) peakZ = z;
-          if (z < zLow || bg[i * 3 + c0] * gain > 240) continue;
+          if (z < zLow || bg[i * 3 + c0] * G0[y] > 240) continue;
           if (nc < cap) { cand[nc++] = k; markB[k] = 1; } else over = true;
         }
       }
@@ -1039,9 +1138,11 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
             const px = Math.round(cxB + rr * Math.cos(a * Math.PI / 8)), py = Math.round(cyB + rr * Math.sin(a * Math.PI / 8));
             if (px < 0 || py < 0 || px >= w || py >= h) continue;
             const i = py * w + px;
-            ringSum += Math.abs(d[(i << 2) + c0] - bg[i * 3 + c0] * gain); ringN++;
+            ringSum += Math.abs(d[(i << 2) + c0] - (this.prev ? this.prev[(i << 2) + c0] : bg[i * 3 + c0] * G0[py])); ringN++;
           }
           if (ringN && ringSum / ringN > 0.35 * rmax) continue;
+          const chk = this.blobCheck(d, w, h, { x0: ox + x0, x1: ox + x1, y0: oy + y0, y1: oy + y1, x: cxB, y: cyB });
+          if (chk !== 'ok') { if (chk === 'moved') this.moved = (this.moved || 0) + 1; else this.stale = (this.stale || 0) + 1; continue; }
           out.push({ area, energy: sw, x: cxB, y: cyB, z: zmax, peak: zmax, red: area, tier: 'B', x0: ox + x0, x1: ox + x1, y0: oy + y0, y1: oy + y1 });
         }
         if (out.length > 3) big = true;
@@ -1081,13 +1182,23 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       }
       return { best, blobs: out, big };
     }
+    /** the background (what the spot looked like just before), as a picture for the 진단 screen */
+    bgCrop(x0, y0, cw, ch) {
+      const out = new ImageData(cw, ch), o = out.data, bg = this.bg, w = this.w, gR = this.rowG, k = [gR[0], gR[1], gR[2]];
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+        const i = (y0 + y) * w + x0 + x, q = i * 3, t = (y * cw + x) * 4;
+        o[t] = bg[q] * k[0][y0 + y]; o[t + 1] = bg[q + 1] * k[1][y0 + y]; o[t + 2] = bg[q + 2] * k[2][y0 + y]; o[t + 3] = 255;
+      }
+      return out;
+    }
     blend(d, n, a) {
       const bg = this.bg;
       for (let i = 0, p = 0, q = 0; i < n; i++, p += 4, q += 3) { bg[q] += (d[p] - bg[q]) * a; bg[q + 1] += (d[p + 1] - bg[q + 1]) * a; bg[q + 2] += (d[p + 2] - bg[q + 2]) * a; }
     }
   }
 
-  /* One trigger pull = one shot: the flash may last several frames; it counts once, at its brightest frame. */
+  /* One trigger pull = one shot: the flash may last several frames; it counts once, at its brightest frame,
+     when it goes out. With the default blinking gun, a light still on after 0.5 s is not counted. */
   class ShotTracker {
     constructor(onShot) { this.onShot = onShot; this.reset(); }
     reset() { this.state = 'ready'; this.lastShot = -1e9; this.lastSeen = -1e9; this.best = null; this.start = 0; this.frames = 0; }
@@ -1096,9 +1207,15 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         if (blob && t - this.lastShot >= S.minInterval) { this.state = 'active'; this.start = t; this.best = blob; this.frames = 1; this.lastSeen = t; }
       } else if (this.state === 'active') {
         if (blob) { this.lastSeen = t; this.frames++; if (blob.energy > this.best.energy) this.best = blob; }
-        if (!blob || t - this.start >= 170) {
+        const steady = S.laserMode === 'steady';
+        if (!blob || (steady && t - this.start >= 170)) {
           this.state = 'cooldown'; this.lastShot = this.start;
           this.onShot(this.best, this.start, this.frames);
+        } else if (t - this.start >= 500) {
+          // a blinking gun's light is gone within half a second; a light that stays is a reflection,
+          // a lamp or something red that arrived, not a shot
+          this.state = 'cooldown'; this.lastShot = this.start;
+          if (this.onIgnore) this.onIgnore(this.best, this.start, this.frames);
         }
       } else {
         if (blob) { this.lastSeen = t; if (t - this.start > 1500) detector.absorb = 20; }
@@ -1197,6 +1314,15 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   let loopToken = 0, autoTimer = 0, trackFails = 0, trackRuns = 0, lastTrack = 0, lastSeenT = -1e9, meterVal = 0;
   const detector = new LaserDetector();
   const tracker = new ShotTracker(handleShot);
+  tracker.onIgnore = (blob, t, frames) => addDiag('ignored', blob, frames, null);
+  const diag = [];
+  function addDiag(kind, blob, frames, ev) {
+    if (!blob) return;
+    diag.unshift({ at: Date.now(), kind, mode, tier: blob.tier || 'A', z: blob.z || 0, peak: blob.peak || 0, frames, crop: blob.crop, bgCrop: blob.bgCrop,
+      hit: ev ? ev.hit : null, score: ev ? ev.score : null, calibrated: !!calib });
+    if (diag.length > 12) diag.length = 12;
+    if (mode === 'setup') { clearTimeout(addDiag.t); addDiag.t = setTimeout(renderDiag, 120); } // never inside the camera loop
+  }
   const recent = [], allShots = [], frameLog = [];
   const test = { count: 0, hits: 0, misses: 0, frames: 0 };
   const perf = { fps: 0, lastT: 0, procMs: 0, frames: 0 };
@@ -1293,8 +1419,10 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
       if (calib || !srcKind) return;
-      if (autoCalibrate(true)) { autoCalFailed = false; return; }
-      if (attempt < 8) scheduleAutoCalib(attempt + 1); else autoCalFailed = true;
+      autoCalibrate(true).then((ok) => {
+        if (ok) { autoCalFailed = false; return; }
+        if (attempt < 8) scheduleAutoCalib(attempt + 1); else autoCalFailed = true;
+      });
     }, attempt === 0 ? 700 : 1100);
   }
   async function listCameras() {
@@ -1373,9 +1501,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     if (zoom.hw) setCamZoom(zoom.cam * f);
     else { zoom.view = clamp(zoom.view * f, 0.5, 4); view.key = ''; renderZoom(); }
   }
-  function zoomFit(quiet) {
+  async function zoomFit(quiet) {
     zoom.view = 1; view.key = ''; renderZoom();
-    if (!calib || !calib.manual) { if (!autoCalibrate(quiet)) return; }
+    if (!calib || !calib.manual) { if (!(await autoCalibrate(quiet))) return; }
     if (!zoom.hw || !calib) return;
     const [sw, sh] = srcSize(), bb = ellBBox(calib, 2.6);
     const dx = Math.max(Math.abs(bb.x0 - sw / 2), Math.abs(bb.x1 - sw / 2)), dy = Math.max(Math.abs(bb.y0 - sh / 2), Math.abs(bb.y1 - sh / 2));
@@ -1390,13 +1518,41 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     if (!keepRoi) roi = null;
     updateCalibInfo(); updateChips();
   }
-  function autoCalibrate(quiet) {
+  /* Finding the target is heavy (many thresholds, ring check, circle fit), so it runs in a Web Worker:
+     the camera loop keeps reading every frame meanwhile, and a one-frame blink is never lost to it. */
+  let finder = null, finderSeq = 0, calibBusy = false;
+  const finderWait = new Map();
+  function makeFinder() {
+    try {
+      const src = ['const clamp = ' + clamp.toString(), ellBBox, morphClose, evalDisk, diskAt, refineCircle, detectTarget].map(String).join('\n') +
+        '\nonmessage = (e) => { const m = e.data; let r = null; try { r = detectTarget(m.img, m.hint, m.opts); } catch (err) { r = null; } postMessage({ id: m.id, r }); };';
+      const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+      w.onmessage = (e) => { const cb = finderWait.get(e.data.id); if (cb) { finderWait.delete(e.data.id); cb(e.data.r); } };
+      w.onerror = () => { finder = false; finderWait.forEach((cb) => cb(undefined)); finderWait.clear(); };
+      return w;
+    } catch (e) { return false; }
+  }
+  function findTarget(img, hint, opts) {
+    if (finder === null) finder = makeFinder();
+    if (!finder) return Promise.resolve(detectTarget(img, hint, opts));
+    return new Promise((res) => {
+      const id = ++finderSeq;
+      finderWait.set(id, (r) => res(r === undefined ? detectTarget(img, hint, opts) : r));
+      finder.postMessage({ id, img, hint, opts });
+      setTimeout(() => { if (finderWait.has(id)) { finderWait.delete(id); res(null); } }, 5000);
+    });
+  }
+  async function autoCalibrate(quiet) {
     const [sw, sh] = srcSize();
-    if (!sw || !sh || (srcKind !== 'demo' && video.readyState < 2)) return false;
+    if (calibBusy || !sw || !sh || (srcKind !== 'demo' && video.readyState < 2)) return false;
     const k = Math.min(1, 960 / Math.max(sw, sh)), cw = Math.round(sw * k), ch = Math.round(sh * k);
     calCanvas.width = cw; calCanvas.height = ch;
     try { calCtx.drawImage(srcEl(), 0, 0, cw, ch); } catch (e) { return false; }
-    const r = detectTarget(calCtx.getImageData(0, 0, cw, ch), null, { circle: S.frontal });
+    const src0 = srcKind;
+    calibBusy = true;
+    let r = null;
+    try { r = await findTarget(calCtx.getImageData(0, 0, cw, ch), null, { circle: S.frontal }); } finally { calibBusy = false; }
+    if (srcKind !== src0 || srcSize()[0] !== sw) return false; // the input changed while we were looking
     if (!r) {
       if (!quiet) toast('검정 원을 찾지 못했어요. 과녁이 화면 가운데 오게 하거나 직접 조정해 주세요.', 4000);
       updateCalibInfo(true);
@@ -1404,7 +1560,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     }
     const kx = sw / cw, ky = sh / ch;
     trackFails = 0;
-    setCalib({ cx: r.cx * kx, cy: r.cy * ky, a: (r.a * (kx + ky)) / 2, b: (r.b * (kx + ky)) / 2, theta: r.theta, w: sw, h: sh, manual: false, q: +r.score.toFixed(3) });
+    setCalib({ cx: r.cx * kx, cy: r.cy * ky, a: (r.a * (kx + ky)) / 2, b: (r.b * (kx + ky)) / 2, theta: r.theta, w: sw, h: sh, manual: false, q: +r.score.toFixed(3), paper: Math.round(r.meanOut) });
     if (!quiet) toast('과녁을 찾았어요');
     if (zoom.hw && !zoom.autoDone) { zoom.autoDone = true; setTimeout(() => zoomFit(true), 300); }
     return true;
@@ -1417,7 +1573,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
   // keep following the paper if it shifts a little (runs every ~1.2 s, between flashes)
+  let trackBusy = false;
   function trackTarget(kx, ky) {
+    if (trackBusy || calibBusy) return;
     trackRuns++;
     const pw = proc.width, ph = proc.height, k = Math.min(1, 260 / Math.max(pw, ph));
     const w = Math.max(24, Math.round(pw * k)), h = Math.max(24, Math.round(ph * k));
@@ -1425,7 +1583,15 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     sctx.drawImage(proc, 0, 0, w, h);
     const fx = kx * (pw / w), fy = ky * (ph / h);
     const hint = { cx: (calib.cx - roi.x) / fx, cy: (calib.cy - roi.y) / fy, r: Math.max(3, (calib.a / fx) * 0.3) };
-    const r = detectTarget(sctx.getImageData(0, 0, w, h), hint, { circle: S.frontal });
+    const calib0 = calib, roi0 = roi;
+    trackBusy = true;
+    findTarget(sctx.getImageData(0, 0, w, h), hint, { circle: S.frontal }).then((r) => {
+      trackBusy = false;
+      if (calib !== calib0 || roi !== roi0 || !calib) return; // moved by hand or a new search meanwhile
+      applyTrack(r, fx, fy);
+    });
+  }
+  function applyTrack(r, fx, fy) {
     const fail = () => { trackFails++; updateChips(); };
     if (!r) return fail();
     const nc = { cx: roi.x + r.cx * fx, cy: roi.y + r.cy * fy, a: (r.a * (fx + fy)) / 2, b: (r.b * (fx + fy)) / 2, theta: r.theta };
@@ -1440,11 +1606,11 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   }
 
   /* ================= frame loop ================= */
-  // Tier B of the detector only looks inside the black zone (+15 %), in processed-image pixels.
+  // Tier B of the detector looks at the whole printed target (out to ring 1), in processed-image pixels.
   let zoneKey = '';
   function updateZone(pw, ph, kx, ky) {
     if (!calib) { if (zoneKey) { zoneKey = ''; detector.setZone(null, null); } return; }
-    const hr = hitRho() * 1.15;
+    const hr = Math.max(hitRho() * 1.15, 2.6); // whole target: hits on the white rings get their X too
     const key = [roi.x, roi.y, roi.w, roi.h, pw, ph, Math.round(calib.cx), Math.round(calib.cy), Math.round(calib.a), Math.round(calib.b), calib.theta.toFixed(2), hr.toFixed(3)].join('|');
     if (key === zoneKey) return;
     zoneKey = key;
@@ -1507,6 +1673,10 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     updateZone(pw, ph, kx, ky);
     const b = detector.process(pctx.getImageData(0, 0, pw, ph));
     const blob = b ? { x: roi.x + b.x * kx, y: roi.y + b.y * ky, energy: b.energy, area: b.area, peak: b.peak, tier: b.tier || 'A', z: b.z || 0 } : null;
+    if (blob && pw >= 48 && ph >= 48) {
+      const x0 = clamp(Math.round(b.x) - 24, 0, pw - 48), y0 = clamp(Math.round(b.y) - 24, 0, ph - 48);
+      try { blob.crop = pctx.getImageData(x0, y0, 48, 48); blob.bgCrop = detector.bgCrop(x0, y0, 48, 48); } catch (e) { /* diagnostics only */ }
+    }
     tracker.update(blob, t);
     if (blob) lastSeenT = t;
     if (window.LT_DEBUG) { frameLog.push({ t: Math.round(t), pk: +detector.peak.toFixed(2), pz: +(detector.peakZ || 0).toFixed(2), q: detector.frame <= (detector.quietUntil || 0), b: blob ? blob.tier + Math.round(blob.z || 0) : '', st: tracker.state, zk: zoneKey.length }); if (frameLog.length > 1200) frameLog.shift(); }
@@ -1555,6 +1725,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     }
     recent.push(ev); if (recent.length > 40) recent.shift();
     allShots.push(ev); if (allShots.length > 2000) allShots.shift();
+    addDiag('shot', blob, frames, ev);
     if (mode === 'setup') {
       test.count++; if (calib) { if (ev.hit) test.hits++; else test.misses++; }
       test.frames = frames; test.tier = ev.tier; test.z = ev.z; renderTest();
@@ -1664,7 +1835,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     if (!srcKind) setChip('chipSrc', 'idle', '입력 없음');
     else if (srcKind === 'demo') setChip('chipSrc', 'demo', '데모');
     else if (srcKind === 'file') setChip('chipSrc', live ? 'ok' : 'warn', '영상 파일');
-    else setChip('chipSrc', live && track && track.readyState === 'live' ? 'ok' : 'bad', live ? '카메라' : '카메라 멈춤');
+    else setChip('chipSrc', live && track && track.readyState === 'live' ? 'ok' : 'bad', live ? `카메라 ${Math.round(perf.fps)}fps` : '카메라 멈춤');
     if (!calib) setChip('chipTarget', srcKind ? 'bad' : 'idle', '과녁 없음');
     else if (trackFails >= 3) setChip('chipTarget', 'warn', '과녁 확인');
     else setChip('chipTarget', 'ok', '과녁');
@@ -1672,7 +1843,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   function updateCalibInfo(failed) {
     const el = $('calibInfo');
     if (!calib) { el.textContent = failed ? '검정 원을 찾지 못했어요. 과녁이 화면에 크게, 가운데 오도록 놓고 자동 인식을 다시 눌러 보세요.' : '아직 과녁을 찾지 않았어요'; return; }
-    el.textContent = `중심 ${calib.cx.toFixed(0)}, ${calib.cy.toFixed(0)} · 검정 원 ${(calib.a * 2).toFixed(0)}×${(calib.b * 2).toFixed(0)}px · ${calib.manual ? '직접 조정' : '자동 인식'}`;
+    el.textContent = `중심 ${calib.cx.toFixed(0)}, ${calib.cy.toFixed(0)} · 검정 원 ${(calib.a * 2).toFixed(0)}×${(calib.b * 2).toFixed(0)}px · ${calib.manual ? '직접 조정' : '자동 인식'}${calib.paper != null ? ' · 종이 밝기 ' + calib.paper : ''}`;
+    $('paperWarn').hidden = !(calib.paper >= 232);
   }
   function renderTest() {
     $('testCount').textContent = test.count; $('testHits').textContent = test.hits; $('testMiss').textContent = test.misses;
@@ -1684,6 +1856,31 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   function renderMeter() {
     const v = clamp(meterVal / 2, 0, 1), f = $('meterFill');
     f.style.width = (v * 100).toFixed(1) + '%'; f.classList.toggle('over', meterVal >= 1);
+  }
+  function renderDiag() {
+    const [sw, sh] = srcSize(), fr = track && track.getSettings ? track.getSettings().frameRate : null;
+    $('diagInfo').textContent = `카메라 ${sw}×${sh} · 설정 ${fr ? Math.round(fr) : '-'}fps · 실제 ${perf.fps.toFixed(0)}fps · 종이 밝기 ${calib && calib.paper != null ? calib.paper : '-'} · 감도 ${S.sensitivity} · 정면 ${S.frontal ? '켬' : '끔'} · 움직임으로 거른 것 ${detector.moved || 0} · 오래된 빛으로 거른 것 ${detector.stale || 0} · v ${window.LT_VERSION || 'preview'}`;
+    const cv = $('diagCanvas'), wcss = Math.max(240, cv.parentElement.clientWidth), rowH = 104, dpr = Math.min(2, window.devicePixelRatio || 1);
+    const rows = Math.max(1, diag.length);
+    cv.style.width = wcss + 'px'; cv.style.height = rows * rowH + 'px';
+    cv.width = Math.round(wcss * dpr); cv.height = Math.round(rows * rowH * dpr);
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, wcss, rows * rowH);
+    g.font = `500 13px ${getComputedStyle(document.body).fontFamily}`; g.textBaseline = 'top';
+    if (!diag.length) { g.fillStyle = tokens['ink-3']; g.fillText('아직 감지된 것이 없어요. 쏘거나 기다려 보세요.', 0, 8); return; }
+    const tmp = document.createElement('canvas'); tmp.width = 48; tmp.height = 48; const tg = tmp.getContext('2d');
+    diag.forEach((e, k) => {
+      const y = k * rowH;
+      g.imageSmoothingEnabled = false;
+      if (e.crop) { tg.putImageData(e.crop, 0, 0); g.drawImage(tmp, 0, y, 88, 88); }
+      if (e.bgCrop) { tg.putImageData(e.bgCrop, 0, 0); g.drawImage(tmp, 94, y, 88, 88); }
+      g.fillStyle = tokens['ink-3']; g.fillText('그때', 2, y + 89); g.fillText('바로 전', 96, y + 89);
+      const what = e.kind === 'ignored' ? '무시함: 0.5초 넘게 켜져 있었음' : !e.calibrated ? '감지(과녁 없음)' : e.hit ? `명중 ${e.score}점` : `빗나감 ${e.score ? e.score + '점' : '과녁 밖'}`;
+      const how = e.tier === 'B' ? `약한 빛 · 잡음의 ${e.z.toFixed(1)}배` : `또렷한 빛 · 기준의 ${e.peak > 0 ? (e.peak / detector.thr).toFixed(1) : '-'}배`;
+      g.fillStyle = e.kind === 'ignored' ? tokens.amber : e.hit ? tokens.hit : tokens.ink;
+      g.fillText(`${fmtClock(e.at)} · ${what}`, 192, y + 6);
+      g.fillStyle = tokens['ink-2'];
+      g.fillText(how, 192, y + 26); g.fillText(`${e.frames}프레임 · ${e.mode === 'setup' ? '설정 모드' : '표적 화면'}`, 192, y + 46);
+    });
   }
   function fmtClock(ts) { const d = new Date(ts); return [d.getHours(), d.getMinutes(), d.getSeconds()].map((v) => String(v).padStart(2, '0')).join(':'); }
   function renderLog() {
@@ -1758,8 +1955,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         g.strokeStyle = rgba(calib ? tokens.hit : tokens.amber, al); g.fillStyle = rgba(calib ? tokens.hit : tokens.amber, al * 0.35);
         g.beginPath(); g.arc(s.x, s.y, rr, 0, Math.PI * 2); g.fill(); g.stroke();
       } else {
-        g.strokeStyle = rgba(tokens.miss, al);
-        g.beginPath(); g.moveTo(s.x - rr, s.y - rr); g.lineTo(s.x + rr, s.y + rr); g.moveTo(s.x + rr, s.y - rr); g.lineTo(s.x - rr, s.y + rr); g.stroke();
+        const xPath = () => { g.beginPath(); g.moveTo(s.x - rr, s.y - rr); g.lineTo(s.x + rr, s.y + rr); g.moveTo(s.x + rr, s.y - rr); g.lineTo(s.x - rr, s.y + rr); };
+        g.lineWidth = 6 * u; g.strokeStyle = rgba(tokens.bg, al * 0.8); xPath(); g.stroke();
+        g.lineWidth = 3 * u; g.strokeStyle = rgba(tokens.miss, al); xPath(); g.stroke();
       }
       if (full && s.score != null) {
         g.font = `600 ${12 * u}px ${getComputedStyle(document.body).fontFamily}`; g.fillStyle = rgba(tokens.ink, al);
@@ -1805,6 +2003,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     $('board').hidden = true; $('setup').hidden = false; resumeVideo();
     requestAnimationFrame(fitStage);
     renderTest(); updateCalibInfo(); syncControls(); syncSourceUI(); renderLog();
+    requestAnimationFrame(renderDiag);
   }
   function closeSetup() {
     mode = 'board'; $('app').dataset.mode = 'board'; editMode = false; $('btnEdit').setAttribute('aria-pressed', 'false');
@@ -1879,7 +2078,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   }
   function syncControls() {
     $('rngSens').value = S.sensitivity; $('outSens').textContent = S.sensitivity;
-    $('selColor').value = S.laserColor; $('chkTrack').checked = !!S.autoTrack; $('chkFrontal').checked = !!S.frontal;
+    $('selColor').value = S.laserColor; $('chkTrack').checked = !!S.autoTrack; $('chkFrontal').checked = !!S.frontal; $('selLaserMode').value = S.laserMode;
     $('numLane').value = S.lane; $('selMinScore').value = String(S.minScore);
     $('rngTol').value = S.tolerance; $('outTol').textContent = (S.tolerance > 0 ? '+' : '') + S.tolerance + '%';
     $('selLimit').value = String(S.timeLimit); if ($('selLimit').value !== String(S.timeLimit)) addOption($('selLimit'), S.timeLimit, S.timeLimit + '초');
@@ -1924,6 +2123,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     $('btnZoomIn').addEventListener('click', () => zoomStep(1));
     $('btnZoomOut').addEventListener('click', () => zoomStep(-1));
     $('btnZoomFit').addEventListener('click', () => zoomFit(false));
+    $('btnDiagClear').addEventListener('click', () => { diag.length = 0; detector.moved = 0; detector.stale = 0; renderDiag(); });
+    $('selLaserMode').addEventListener('change', (e) => set('laserMode', e.target.value));
     $('txtRoster').addEventListener('change', (e) => { S.shooterIdx = 0; set('roster', e.target.value); });
     $('btnPrevShooter').addEventListener('click', () => moveShooter(-1));
     $('btnNextShooter').addEventListener('click', () => moveShooter(1));
@@ -1937,7 +2138,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       else { attract = false; useDemo(); }
     }));
     $('fileInput2').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) { attract = false; useFile(f); } e.target.value = ''; });
-    $('btnAuto').addEventListener('click', () => { if (!srcKind) return toast('먼저 영상 입력을 켜 주세요'); if (autoCalibrate(false) && editMode) toggleEdit(false); });
+    $('btnAuto').addEventListener('click', () => { if (!srcKind) return toast('먼저 영상 입력을 켜 주세요'); autoCalibrate(false).then((ok) => { if (ok && editMode) toggleEdit(false); }); });
     $('btnEdit').addEventListener('click', () => toggleEdit(!editMode));
     $('btnZoom').addEventListener('click', () => {
       setupZoom = !setupZoom; view.key = '';
@@ -2044,7 +2245,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   }
   window.addEventListener('message', (e) => handleCommand(e.data));
   window.LaserTarget = {
-    version: '0.3.0',
+    version: '0.5.0',
     setShooter(name) { shooterOverride = name ? String(name).slice(0, 40) : ''; renderShooter(); },
     on(type, fn) { (listeners[type] = listeners[type] || []).push(fn); return () => window.LaserTarget.off(type, fn); },
     off(type, fn) { const a = listeners[type]; if (a) { const i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); } },
@@ -2061,7 +2262,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     events,
     _dbg: {
       detectTarget, LaserDetector, autoCalibrate, openSetup, closeSetup, useDemo, useCamera, setCalib,
-      get calib() { return calib; }, get roi() { return roi; }, get perf() { return perf; }, get recent() { return recent; }, get allShots() { return allShots; }, get frameLog() { return frameLog; },
+      get calib() { return calib; }, get roi() { return roi; }, get perf() { return perf; }, get recent() { return recent; }, get allShots() { return allShots; }, get diag() { return diag; }, get frameLog() { return frameLog; },
       get game() { return game; }, get trackFails() { return trackFails; }, get trackRuns() { return trackRuns; }, get test() { return test; }, get detector() { return detector; }, get mode() { return mode; },
     },
   };

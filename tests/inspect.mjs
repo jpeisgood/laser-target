@@ -31,7 +31,7 @@ const out = await page.evaluate(async ({ urls, idx, a }) => {
   const det = new d.LaserDetector(); det.configure(6, 'red');
   { const mask = new Uint8Array(pw * ph); let x0 = pw, y0 = ph, x1 = -1, y1 = -1; const kx = roi.w / pw, ky = roi.h / ph;
     for (let y = 1; y < ph - 1; y++) for (let x = 1; x < pw - 1; x++) { const sx = roi.x + (x + 0.5) * kx - e.cx, sy = roi.y + (y + 0.5) * ky - e.cy;
-      const u = (sx * c + sy * s) / e.a, v = (-sx * s + sy * c) / e.b; if (u * u + v * v <= 1.15 * 1.15) { mask[y * pw + x] = 1; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); } }
+      const u = (sx * c + sy * s) / e.a, v = (-sx * s + sy * c) / e.b; if (u * u + v * v <= 2.6 * 2.6) { mask[y * pw + x] = 1; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); } }
     det.setZone(mask, { x0, y0, x1, y1 }); }
   const pc = document.createElement('canvas'); pc.width = pw; pc.height = ph; const pg = pc.getContext('2d', { willReadFrequently: true });
   const rows = [];
@@ -39,7 +39,7 @@ const out = await page.evaluate(async ({ urls, idx, a }) => {
     const im = await load(urls[n]);
     pg.drawImage(im, roi.x, roi.y, roi.w, roi.h, 0, 0, pw, ph);
     const bl = det.process(pg.getImageData(0, 0, pw, ph));
-    if (idx[n] >= a) rows.push({ f: idx[n], peak: +det.peak.toFixed(2), pz: +(det.peakZ||0).toFixed(2), blobs: det.blobs, gain: +det.gain?.toFixed(3), best: bl && { x: +(roi.x + bl.x * roi.w / pw).toFixed(1), y: +(roi.y + bl.y * roi.h / ph).toFixed(1), area: bl.area, red: bl.red, pk: Math.round(bl.peak) } });
+    if (idx[n] >= a) rows.push({ f: idx[n], peak: +det.peak.toFixed(2), pz: +(det.peakZ||0).toFixed(2), moved: det.moved || 0, stale: det.stale || 0, blobs: det.blobs, gain: +det.gain?.toFixed(3), best: bl && { tier: bl.tier || 'A', z: bl.z && +bl.z.toFixed(1), x: +(roi.x + bl.x * roi.w / pw).toFixed(1), y: +(roi.y + bl.y * roi.h / ph).toFixed(1), area: bl.area, red: bl.red, pk: Math.round(bl.peak) } });
   }
   return { e, roi, pw, ph, rows };
 }, { urls: list.map(pick), idx: list, a });
