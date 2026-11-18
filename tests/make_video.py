@@ -78,6 +78,12 @@ SCENES = {
         paper=[(452, 52), (848, 70), (884, 676), (418, 662)], seconds=24, light=1.0, noise=2.6, seed=7,
         clutter=True, events=True,
     ),
+    # the 25 m target filmed head-on, small and off-centre in the frame (frontal circle fit + zoom fit)
+    "front_photo": dict(
+        texture=pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else None, tex_center=None, tex_R=None,
+        paper=[(445, 207), (675, 207), (675, 452), (445, 452)], seconds=14, light=0.9, noise=3.0, seed=17,
+        clutter=True, events=False,
+    ),
     # the school's existing 25 m target (photo 1), dimmer room, noisier sensor, seen from the right
     "scene_photo": dict(
         texture=pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else None, tex_center=None, tex_R=None,

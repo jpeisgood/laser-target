@@ -33,6 +33,8 @@ page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resourc
 await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 await page.goto(url);
 if (sens) await page.evaluate((s) => window.LaserTarget.configure({ sensitivity: s }), sens);
+// the synthetic scenes are filmed at an angle; only front_* scenes are head-on
+if (!scene.startsWith('front')) await page.evaluate(() => window.LaserTarget.configure({ frontal: false }));
 await page.click('#btnStartCamera');
 await page.evaluate(() => window.LaserTarget._dbg.openSetup()); // phase 1 runs as test shots in settings mode
 await page.waitForFunction(() => window.LaserTarget._dbg.calib, null, { timeout: 20000 });

@@ -32,7 +32,7 @@ def target_svg(black_d: float, title: str, subtitle: str) -> str:
     for n in rings:
         r = R * (11 - n) / 4
         if n <= 6:
-            add(f'<circle cx="{cx}" cy="{cy}" r="{r:.3f}" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>')
+            add(f'<circle cx="{cx}" cy="{cy}" r="{r:.3f}" fill="#fff" stroke="#1b1b1b" stroke-width="0.5"/>')
     # black scoring disk (ring 7 edge)
     add(f'<circle cx="{cx}" cy="{cy}" r="{R:.3f}" fill="#000"/>')
     for n in (8, 9, 10):

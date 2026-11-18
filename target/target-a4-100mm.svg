@@ -5,9 +5,9 @@
 <text x="14" y="22.5" font-size="3.6" fill="#555">처음 배우는 학생·짧은 거리용</text>
 <text x="196" y="16" font-size="3.6" fill="#555" text-anchor="end">검정 원 = 명중 (7점 이상)</text>
 <text x="196" y="22.5" font-size="3.6" fill="#555" text-anchor="end">검정 원 지름 100 mm</text>
-<circle cx="105.0" cy="140.0" r="87.500" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
-<circle cx="105.0" cy="140.0" r="75.000" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
-<circle cx="105.0" cy="140.0" r="62.500" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
+<circle cx="105.0" cy="140.0" r="87.500" fill="#fff" stroke="#1b1b1b" stroke-width="0.5"/>
+<circle cx="105.0" cy="140.0" r="75.000" fill="#fff" stroke="#1b1b1b" stroke-width="0.5"/>
+<circle cx="105.0" cy="140.0" r="62.500" fill="#fff" stroke="#1b1b1b" stroke-width="0.5"/>
 <circle cx="105.0" cy="140.0" r="50.000" fill="#000"/>
 <circle cx="105.0" cy="140.0" r="37.500" fill="none" stroke="#3c3c3c" stroke-width="0.35"/>
 <circle cx="105.0" cy="140.0" r="25.000" fill="none" stroke="#3c3c3c" stroke-width="0.35"/>

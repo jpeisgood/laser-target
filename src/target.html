@@ -166,7 +166,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     out.push('<g font-family="Barlow Condensed, IBM Plex Sans KR, Arial Narrow, Arial, sans-serif">');
     t(14, 16, 6.2, 'LASER RUN 표적', 'font-weight="700" fill="#111"');
     t(14, 22.5, 3.6, `검정 원 지름 ${st.black.toFixed(1)} mm · 검정 원 = 명중(7점 이상)`, 'fill="#555"');
-    for (let n = nMin; n <= 6; n++) out.push(`<circle cx="${CX}" cy="${CY}" r="${(R * (11 - n) / 4).toFixed(3)}" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>`);
+    for (let n = nMin; n <= 6; n++) out.push(`<circle cx="${CX}" cy="${CY}" r="${(R * (11 - n) / 4).toFixed(3)}" fill="#fff" stroke="#1b1b1b" stroke-width="0.5"/>`);
     out.push(`<circle cx="${CX}" cy="${CY}" r="${R.toFixed(3)}" fill="#000"/>`);
     for (let n = 8; n <= 10; n++) out.push(`<circle cx="${CX}" cy="${CY}" r="${(R * (11 - n) / 4).toFixed(3)}" fill="none" stroke="#3c3c3c" stroke-width="0.35"/>`);
     const fs = Math.min(4.2, band * 0.62);

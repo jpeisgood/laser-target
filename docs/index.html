@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
-<script>window.LT_STANDALONE = true; window.LT_VERSION = "82159a8597";</script>
+<script>window.LT_STANDALONE = true; window.LT_VERSION = "718889158f";</script>
 <title>레이저런 표적</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="태블릿 카메라로 종이 과녁의 레이저 명중을 인식하는 레이저런 사격 표적">
@@ -51,7 +51,8 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html, body, #app { height: 100%; }
+html { height: 100%; height: 100dvh; }
+body, #app { height: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
   font-family: var(--font-ui); font-size: 15px; line-height: 1.5;
@@ -76,13 +77,13 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .btn[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
 
 /* ---------- frame: view (2/3) + side (1/3) ---------- */
-.app { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); }
+.app { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); grid-template-rows: minmax(0, 1fr); overflow: hidden; }
 .view {
-  position: relative; min-width: 0; min-height: 0; background: var(--view-bg);
-  display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 8px;
+  position: relative; min-width: 0; min-height: 0; background: var(--view-bg); overflow: hidden;
+  display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; gap: 8px;
   padding-block: 12px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: 12px;
 }
-.stage-slot { min-width: 0; min-height: 0; display: grid; place-items: center; }
+.stage-slot { min-width: 0; min-height: 0; display: grid; place-items: center; overflow: hidden; }
 .stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; touch-action: none; }
 .stage video, .stage canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
 .stage video { object-fit: fill; }
@@ -98,6 +99,15 @@ button, select, input, textarea { font: inherit; color: inherit; }
   font-size: 15px;
 }
 .view-note .btn { min-height: 38px; padding: 6px 12px; }
+.zoom-bar {
+  position: absolute; right: 22px; bottom: 22px; z-index: 3; display: flex; align-items: center; gap: 4px;
+  padding: 4px; border-radius: 14px; background: var(--shade); border: 1px solid var(--line);
+}
+.app[data-mode="setup"] .zoom-bar { bottom: 52px; }
+.zbtn { min-width: 48px; min-height: 48px; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--ink); font-size: 26px; line-height: 1; cursor: pointer; }
+.zbtn.fit { font-size: 15px; font-weight: 700; padding: 0 14px; background: var(--amber); color: var(--amber-ink); }
+.zval { min-width: 64px; text-align: center; font-family: var(--font-mono); font-size: 14px; color: var(--ink); line-height: 1.2; }
+.zval small { display: block; font-family: var(--font-ui); font-size: 11px; color: var(--ink-2); }
 .view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; color: var(--ink-2); font-size: 13px; }
 .app[data-mode="board"] .view-bar { display: none; }
 .view-bar span { display: inline-flex; align-items: center; gap: 7px; }
@@ -106,11 +116,11 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .view-bar i.dot { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--hit); }
 .view-bar i.x { width: 10px; height: 10px; border: 0; background: linear-gradient(45deg, transparent 42%, var(--miss) 42% 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, var(--miss) 42% 58%, transparent 58%); }
 
-.side { min-width: 0; min-height: 0; display: grid; background: var(--surface); border-left: 1px solid var(--line); }
+.side { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); overflow: hidden; background: var(--surface); border-left: 1px solid var(--line); }
 
 /* ---------- side: scoreboard ---------- */
 .board {
-  min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 14px;
+  min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 14px;
   padding-block: 16px; padding-left: 18px; padding-right: max(18px, env(safe-area-inset-right, 0px));
 }
 .side-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -144,7 +154,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .nav-btn:disabled { opacity: 0.3; cursor: default; }
 .shooter .sub { color: var(--ink-2); font-size: 13px; text-align: center; }
 
-.leds-wrap { min-height: 0; display: flex; align-items: center; justify-content: center; }
+.leds-wrap { min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .leds { --led-size: 90px; display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--led-size) * 0.22); }
 .led {
   position: relative; width: var(--led-size); height: var(--led-size); border-radius: 50%;
@@ -183,7 +193,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .side-actions #btnFull { flex: 1 1 100%; min-height: 40px; font-size: 14px; }
 
 /* ---------- side: settings ---------- */
-.setup { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.setup { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
 .setup-bar {
   display: flex; align-items: center; gap: 12px; padding-block: 12px;
   padding-left: 18px; padding-right: max(18px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line);
@@ -314,6 +324,12 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       <span><i class="dot"></i>명중</span>
       <span><i class="x"></i>빗나감</span>
     </div>
+    <div class="zoom-bar" id="zoomBar" role="group" aria-label="확대">
+      <button class="zbtn" id="btnZoomOut" type="button" aria-label="축소">−</button>
+      <span class="zval"><span id="zoomVal">1.0×</span><small id="zoomKind">화면 확대</small></span>
+      <button class="zbtn" id="btnZoomIn" type="button" aria-label="확대">+</button>
+      <button class="zbtn fit" id="btnZoomFit" type="button">과녁 맞춤</button>
+    </div>
     <div class="view-note" id="viewNote" hidden><span id="viewNoteText">과녁(검정 원)을 찾는 중이에요…</span><button class="btn" id="btnNoteSetup" type="button" hidden>설정 모드</button></div>
   </section>
 
@@ -368,6 +384,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
             <button class="btn" id="btnEdit" type="button" aria-pressed="false">직접 조정</button>
             <button class="btn btn-quiet" id="btnZoom" type="button" aria-pressed="false">과녁 크게 보기</button>
           </div>
+          <label class="switch"><input type="checkbox" id="chkFrontal">정면에서 찍어요 (과녁을 동그라미로 맞추기)</label>
           <label class="switch"><input type="checkbox" id="chkTrack">과녁이 조금 움직여도 따라가기</label>
           <p class="mono" id="calibInfo">아직 과녁을 찾지 않았어요</p>
           <p class="hint" id="printLinks" hidden>인쇄용 과녁:
@@ -461,8 +478,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
             <label class="field" id="rowCamera"><span>카메라</span><select id="selCamera"></select></label>
             <label class="field" id="rowRes"><span>해상도</span>
               <select id="selRes">
-                <option value="1280x720">1280×720 (권장)</option>
-                <option value="1920x1080">1920×1080 (먼 거리)</option>
+                <option value="1920x1080">1920×1080 (권장)</option>
+                <option value="1280x720">1280×720</option>
                 <option value="640x480">640×480 (느린 기기)</option>
               </select>
             </label>
@@ -519,7 +536,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   const DEFAULTS = {
     lane: 1, hitsNeeded: 5, minScore: 7, tolerance: 0, timeLimit: 0, resetDelay: 5,
     sensitivity: 6, laserColor: 'red', minInterval: 250, sound: true, missSound: false,
-    procSize: 480, autoTrack: true, deviceId: '', resolution: '1280x720', roster: '', autoNext: true, shooterIdx: 0,
+    procSize: 480, autoTrack: true, deviceId: '', resolution: '1920x1080', roster: '', autoNext: true, shooterIdx: 0, frontal: true,
   };
   const store = {
     get(k, d) { try { const v = localStorage.getItem('laserrun.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -527,7 +544,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   };
   const saved = store.get('settings', {}) || {};
   if ((saved.v || 1) < 2) { delete saved.timeLimit; delete saved.sensitivity; } // v2: no time limit by default, new detector scale
-  const S = Object.assign({}, DEFAULTS, saved, { v: 2 });
+  if ((saved.v || 1) < 3 && saved.resolution === '1280x720') delete saved.resolution; // v3: sharper default image
+  const S = Object.assign({}, DEFAULTS, saved, { v: 3 });
   const saveSettings = () => store.set('settings', S);
   let urlAutostart = '';
   try {
@@ -687,8 +705,22 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     const iouS = Math.min(1, (iou - 0.7) / 0.22);
     const sizeS = Math.min(1, a / (0.05 * Math.min(W, H)));
     const dc = Math.hypot(e.cx - W / 2, e.cy - H / 2) / Math.hypot(W / 2, H / 2);
-    const score = iouS * contrast * darkFrac * darkFrac * sizeS * (1 - 0.35 * dc);
-    return Object.assign(e, { score, meanIn, meanOut, iou, darkFrac, contrast, T });
+    let score = iouS * contrast * darkFrac * darkFrac * sizeS * (1 - 0.35 * dc);
+    if (ctx.circle) score *= (b / a) * (b / a); // filmed from the front: the black disk should look round
+    // a real target has thin printed rings every R/4 out to ring 1 (2.5 R); a black speaker or clock does not
+    const ringAt = (r) => ringMean(r, r, 1, 56);
+    let rings = 0, ringsN = 0;
+    for (let q = 1.25; q <= 2.51; q += 0.25) {
+      let line = Infinity;
+      for (let t = -0.05; t <= 0.0501; t += 0.0125) { const v = ringAt(q + t); if (v < line) line = v; }
+      const band = ringAt(q - 0.125);
+      if (!Number.isFinite(line) || !Number.isFinite(band)) continue;
+      ringsN++;
+      if (band - line > 0.1 * (meanOut - meanIn)) rings++;
+    }
+    const ringEv = ringsN >= 3 ? rings / ringsN : 0;
+    score *= 0.4 + 0.6 * ringEv;
+    return Object.assign(e, { score, meanIn, meanOut, iou, darkFrac, contrast, T, ringEv });
   }
 
   function diskAt(ctx, T, hint) {
@@ -723,15 +755,64 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     return best;
   }
 
-  function detectTarget(img, hint) {
-    const W = img.width, H = img.height, n = W * H, d = img.data;
+  /* Frontal view: the black zone is a circle. Walk 90 rays outward from the centre, take the first
+     dark->light crossing that stays light (white numbers inside the black are skipped), then fit a circle
+     to those edge points, dropping outliers. */
+  function refineCircle(gray, W, H, e) {
+    const T = (e.meanIn + e.meanOut) / 2;
+    const at = (x, y) => {
+      const x0 = Math.floor(x), y0 = Math.floor(y);
+      if (x0 < 0 || y0 < 0 || x0 >= W - 1 || y0 >= H - 1) return -1;
+      const fx = x - x0, fy = y - y0, i = y0 * W + x0;
+      return gray[i] * (1 - fx) * (1 - fy) + gray[i + 1] * fx * (1 - fy) + gray[i + W] * (1 - fx) * fy + gray[i + W + 1] * fx * fy;
+    };
+    let cx = e.cx - 0.5, cy = e.cy - 0.5, r = Math.sqrt(e.a * e.b);
+    for (let iter = 0; iter < 3; iter++) {
+      let pts = [];
+      for (let k = 0; k < 90; k++) {
+        const t = (k * 2 * Math.PI) / 90, c = Math.cos(t), sn = Math.sin(t), step = 0.25;
+        let prev = at(cx + 0.8 * r * c, cy + 0.8 * r * sn);
+        for (let q = 0.8 * r + step; q <= 1.25 * r; q += step) {
+          const v = at(cx + q * c, cy + q * sn);
+          if (v < 0) break;
+          if (prev >= 0 && prev < T && v >= T) {
+            let stays = true;
+            for (let z = q + 0.5; z < q + 0.07 * r + 0.5; z += 0.5) { const u = at(cx + z * c, cy + z * sn); if (u >= 0 && u < T) { stays = false; break; } }
+            if (stays) { const qq = q - step + (step * (T - prev)) / (v - prev); pts.push([cx + qq * c, cy + qq * sn]); break; }
+          }
+          prev = v;
+        }
+      }
+      for (let rep = 0; rep < 3 && pts.length >= 12; rep++) {
+        // algebraic circle fit: x^2 + y^2 + Dx + Ey + F = 0
+        let sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, sz = 0, sxz = 0, syz = 0;
+        for (const [x, y] of pts) { const z = x * x + y * y; sx += x; sy += y; sxx += x * x; syy += y * y; sxy += x * y; sz += z; sxz += x * z; syz += y * z; }
+        const N = pts.length, A = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, N]], B = [-sxz, -syz, -sz];
+        const det = (m) => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+        const dA = det(A);
+        if (Math.abs(dA) < 1e-9) break;
+        const col = (j) => A.map((row, i) => row.map((v, k) => (k === j ? B[i] : v)));
+        const D = det(col(0)) / dA, E = det(col(1)) / dA, F = det(col(2)) / dA;
+        const ncx = -D / 2, ncy = -E / 2, nr = Math.sqrt(Math.max(1, ncx * ncx + ncy * ncy - F));
+        cx = ncx; cy = ncy; r = nr;
+        const res = pts.map(([x, y]) => Math.abs(Math.hypot(x - cx, y - cy) - r)), med = res.slice().sort((p, q) => p - q)[Math.floor(res.length / 2)];
+        const keep = pts.filter((_, i) => res[i] <= Math.max(0.8, 3 * med));
+        if (keep.length === pts.length) break;
+        pts = keep;
+      }
+    }
+    return { cx: cx + 0.5, cy: cy + 0.5, r };
+  }
+
+  function detectTarget(img, hint, opts) {
+    const W = img.width, H = img.height, n = W * H, d = img.data, circle = !!(opts && opts.circle);
     if (W < 24 || H < 24) return null;
     const gray = new Uint8Array(n), hist = new Uint32Array(256);
     for (let i = 0, p = 0; i < n; i++, p += 4) { const g = (d[p] * 77 + d[p + 1] * 150 + d[p + 2] * 29) >> 8; gray[i] = g; hist[g]++; }
     const pct = (q) => { const target = q * n; let acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= target) return v; } return 255; };
     const lo = pct(0.01), hi = pct(0.97);
     if (hi - lo < 35) return null;
-    const ctx = { W, H, gray, mask: new Uint8Array(n), tmp: new Uint8Array(n), labels: new Int32Array(n), stack: new Int32Array(n) };
+    const ctx = { W, H, gray, circle, mask: new Uint8Array(n), tmp: new Uint8Array(n), labels: new Int32Array(n), stack: new Int32Array(n) };
     let best = null;
     for (let k = 1; k <= 7; k++) {
       const c = diskAt(ctx, Math.round(lo + ((hi - lo) * k) / 9), hint);
@@ -739,7 +820,13 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     }
     if (!best) return null;
     const r = diskAt(ctx, Math.round((best.meanIn + best.meanOut) / 2), { cx: best.cx, cy: best.cy, r: Math.max(4, best.a * 0.3) });
-    return r && r.score >= best.score * 0.6 ? r : best;
+    const out = r && r.score >= best.score * 0.6 ? r : best;
+    if (circle) {
+      const c = refineCircle(gray, W, H, out);
+      if (c.r > 4 && Math.abs(c.r / Math.sqrt(out.a * out.b) - 1) < 0.3 && Math.hypot(c.cx - out.cx, c.cy - out.cy) < 0.3 * c.r) Object.assign(out, { cx: c.cx, cy: c.cy, a: c.r, b: c.r, theta: 0 });
+      else Object.assign(out, { a: Math.sqrt(out.a * out.b), b: Math.sqrt(out.a * out.b), theta: 0 });
+    }
+    return out;
   }
 
   /* ================= laser detection =================
@@ -1184,7 +1271,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     await waitForVideo();
     track.addEventListener('ended', () => { if (srcKind === 'camera') toast('카메라 연결이 끊겼어요. 설정에서 카메라를 다시 켜 주세요.', 5000); updateChips(); });
     onSourceReady();
-    listCameras(); buildCamControls();
+    listCameras(); buildCamControls(); initZoom();
   }
   async function useFile(file) {
     stopSource();
@@ -1195,7 +1282,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     onSourceReady();
   }
   function useDemo() {
-    stopSource();
+    stopSource(); zoom.hw = null; zoom.view = 1;
     if (!demo) demo = new Demo(demoCanvas);
     demo.running = true; demo.nextAuto = 0; srcKind = 'demo';
     onSourceReady();
@@ -1257,6 +1344,56 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     }
   }
 
+  /* ================= zoom =================
+     If the camera reports a zoom range (getCapabilities), − / + drive the camera itself: a sharper target
+     for the detector. Zoom is about the frame centre, so the outline is moved with it and tracking then
+     fine-tunes it. Otherwise − / + only enlarge the picture on screen. 과녁 맞춤 finds the target again and,
+     with a zooming camera, zooms until the whole target (ring 1) fills about 85 % of the frame. */
+  const zoom = { hw: null, cam: 1, view: 1, autoDone: false };
+  function initZoom() {
+    zoom.hw = null; zoom.view = 1; zoom.autoDone = false;
+    if (srcKind === 'camera' && track && track.getCapabilities) {
+      try {
+        const c = track.getCapabilities().zoom, st = track.getSettings ? track.getSettings() : {};
+        if (c && typeof c.min === 'number' && c.max > c.min) { zoom.hw = { min: c.min, max: c.max }; zoom.cam = st.zoom || c.min; }
+      } catch (e) { zoom.hw = null; }
+    }
+    renderZoom();
+  }
+  function renderZoom() {
+    $('zoomVal').textContent = (zoom.hw ? zoom.cam : zoom.view).toFixed(1) + '×';
+    $('zoomKind').textContent = zoom.hw ? '카메라 확대' : '화면 확대';
+  }
+  async function setCamZoom(z) {
+    const h = zoom.hw;
+    if (!h || !track) return;
+    z = clamp(z, h.min, h.max);
+    const old = zoom.cam;
+    if (Math.abs(z - old) < 0.01) return;
+    try { await track.applyConstraints({ advanced: [{ zoom: z }] }); } catch (e) { zoom.hw = null; renderZoom(); toast('이 카메라는 확대를 바꿀 수 없어서 화면 확대로 바꿨어요'); return; }
+    zoom.cam = z; renderZoom();
+    if (calib) {
+      const [sw, sh] = srcSize(), k = z / old;
+      setCalib(Object.assign({}, calib, { cx: sw / 2 + (calib.cx - sw / 2) * k, cy: sh / 2 + (calib.cy - sh / 2) * k, a: calib.a * k, b: calib.b * k }));
+      lastTrack = 0;
+      if (!calib.manual) setTimeout(() => { if (srcKind === 'camera') autoCalibrate(true); }, 700);
+    }
+  }
+  function zoomStep(dir) {
+    const f = dir > 0 ? 1.2 : 1 / 1.2;
+    if (zoom.hw) setCamZoom(zoom.cam * f);
+    else { zoom.view = clamp(zoom.view * f, 0.5, 4); view.key = ''; renderZoom(); }
+  }
+  function zoomFit(quiet) {
+    zoom.view = 1; view.key = ''; renderZoom();
+    if (!calib || !calib.manual) { if (!autoCalibrate(quiet)) return; }
+    if (!zoom.hw || !calib) return;
+    const [sw, sh] = srcSize(), bb = ellBBox(calib, 2.6);
+    const dx = Math.max(Math.abs(bb.x0 - sw / 2), Math.abs(bb.x1 - sw / 2)), dy = Math.max(Math.abs(bb.y0 - sh / 2), Math.abs(bb.y1 - sh / 2));
+    const k = Math.min((0.43 * sw) / dx, (0.43 * sh) / dy); // keep the whole target inside the frame after zooming about the centre
+    setCamZoom(zoom.cam * k);
+  }
+
   /* ================= calibration ================= */
   function setCalib(c, keepRoi) {
     calib = c;
@@ -1267,10 +1404,10 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   function autoCalibrate(quiet) {
     const [sw, sh] = srcSize();
     if (!sw || !sh || (srcKind !== 'demo' && video.readyState < 2)) return false;
-    const k = Math.min(1, 640 / Math.max(sw, sh)), cw = Math.round(sw * k), ch = Math.round(sh * k);
+    const k = Math.min(1, 960 / Math.max(sw, sh)), cw = Math.round(sw * k), ch = Math.round(sh * k);
     calCanvas.width = cw; calCanvas.height = ch;
     try { calCtx.drawImage(srcEl(), 0, 0, cw, ch); } catch (e) { return false; }
-    const r = detectTarget(calCtx.getImageData(0, 0, cw, ch), null);
+    const r = detectTarget(calCtx.getImageData(0, 0, cw, ch), null, { circle: S.frontal });
     if (!r) {
       if (!quiet) toast('검정 원을 찾지 못했어요. 과녁이 화면 가운데 오게 하거나 직접 조정해 주세요.', 4000);
       updateCalibInfo(true);
@@ -1280,6 +1417,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     trackFails = 0;
     setCalib({ cx: r.cx * kx, cy: r.cy * ky, a: (r.a * (kx + ky)) / 2, b: (r.b * (kx + ky)) / 2, theta: r.theta, w: sw, h: sh, manual: false, q: +r.score.toFixed(3) });
     if (!quiet) toast('과녁을 찾았어요');
+    if (zoom.hw && !zoom.autoDone) { zoom.autoDone = true; setTimeout(() => zoomFit(true), 300); }
     return true;
   }
   function computeROI(sw, sh) {
@@ -1298,7 +1436,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     sctx.drawImage(proc, 0, 0, w, h);
     const fx = kx * (pw / w), fy = ky * (ph / h);
     const hint = { cx: (calib.cx - roi.x) / fx, cy: (calib.cy - roi.y) / fy, r: Math.max(3, (calib.a / fx) * 0.3) };
-    const r = detectTarget(sctx.getImageData(0, 0, w, h), hint);
+    const r = detectTarget(sctx.getImageData(0, 0, w, h), hint, { circle: S.frontal });
     const fail = () => { trackFails++; updateChips(); };
     if (!r) return fail();
     const nc = { cx: roi.x + r.cx * fx, cy: roi.y + r.cy * fy, a: (r.a * (fx + fy)) / 2, b: (r.b * (fx + fy)) / 2, theta: r.theta };
@@ -1578,7 +1716,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   function ellipsePath(g, e, r) { g.beginPath(); g.ellipse(e.cx, e.cy, Math.max(0.1, e.a * r), Math.max(0.1, e.b * r), e.theta, 0, Math.PI * 2); }
   function handlesOf(e) {
     const c = Math.cos(e.theta), s = Math.sin(e.theta);
-    return { c: [e.cx, e.cy], a: [e.cx + e.a * c, e.cy + e.a * s], b: [e.cx - e.b * s, e.cy + e.b * c] };
+    const h = { c: [e.cx, e.cy], a: [e.cx + e.a * c, e.cy + e.a * s], b: [e.cx - e.b * s, e.cy + e.b * c] };
+    if (S.frontal) delete h.b; // a circle needs only its centre and one point on the edge
+    return h;
   }
   function drawOverlay(t) {
     const r = stage.getBoundingClientRect();
@@ -1610,8 +1750,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       if (full && editMode) {
         const h = handlesOf(calib);
         g.strokeStyle = rgba(tokens.amber, 0.7); g.lineWidth = 1.5 * u;
-        g.beginPath(); g.moveTo(h.c[0], h.c[1]); g.lineTo(h.a[0], h.a[1]); g.moveTo(h.c[0], h.c[1]); g.lineTo(h.b[0], h.b[1]); g.stroke();
-        for (const key of ['c', 'a', 'b']) {
+        g.beginPath(); g.moveTo(h.c[0], h.c[1]); g.lineTo(h.a[0], h.a[1]); if (h.b) { g.moveTo(h.c[0], h.c[1]); g.lineTo(h.b[0], h.b[1]); } g.stroke();
+        for (const key of Object.keys(h)) {
           const [x, y] = h[key];
           g.beginPath(); g.arc(x, y, 11 * u, 0, Math.PI * 2); g.fillStyle = rgba(tokens.bg, 0.55); g.fill();
           g.lineWidth = 2.5 * u; g.strokeStyle = tokens.amber; g.stroke();
@@ -1640,18 +1780,21 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   }
 
   // The board view (and setup, on request) zooms in on the target: the paper is often small in the frame.
+  // zoom.view is the extra on-screen zoom from the − / + buttons when the camera itself cannot zoom.
   function computeView() {
     if (drag) return;
     const [sw, sh] = srcSize(), W = stage.clientWidth, H = stage.clientHeight;
     if (!sw || !sh || W < 2) return;
-    let s = W / sw, ox = 0, oy = 0;
+    let s = Math.min(W / sw, H / sh), fx = sw / 2, fy = sh / 2;
     if (calib && (mode !== 'setup' || setupZoom)) {
       const bb = ellBBox(calib, 2.7);
       const z = Math.min(W / (bb.x1 - bb.x0), H / (bb.y1 - bb.y0));
-      if (z > s) { s = z; ox = W / 2 - calib.cx * s; oy = H / 2 - calib.cy * s; }
+      if (z > s) { s = z; fx = calib.cx; fy = calib.cy; }
     }
+    if (!zoom.hw) s *= zoom.view;
+    const ox = W / 2 - fx * s, oy = H / 2 - fy * s;
     view.s = s; view.ox = ox; view.oy = oy;
-    const key = [srcKind, W, H, s.toFixed(4), ox.toFixed(1), oy.toFixed(1)].join('|');
+    const key = [srcKind, sw, sh, W, H, s.toFixed(4), ox.toFixed(1), oy.toFixed(1)].join('|');
     if (key === view.key) return;
     view.key = key;
     for (const el of [video, demoCanvas]) { el.style.width = sw * s + 'px'; el.style.height = sh * s + 'px'; el.style.left = ox + 'px'; el.style.top = oy + 'px'; }
@@ -1699,7 +1842,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   function pickHandle(p) {
     if (!calib) return null;
     const h = handlesOf(calib); let best = null, bd = 26 / p.k;
-    for (const key of ['a', 'b', 'c']) { const d = Math.hypot(p.x - h[key][0], p.y - h[key][1]); if (d < bd) { bd = d; best = key; } }
+    for (const key of Object.keys(h)) { const d = Math.hypot(p.x - h[key][0], p.y - h[key][1]); if (d < bd) { bd = d; best = key; } }
     return best;
   }
   stage.addEventListener('pointerdown', (e) => {
@@ -1722,6 +1865,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     if (!p) return;
     const o = drag.orig, c = Object.assign({}, calib, { manual: true });
     if (drag.kind === 'move' || drag.kind === 'c') { c.cx = o.cx + p.x - drag.start.x; c.cy = o.cy + p.y - drag.start.y; }
+    else if (drag.kind === 'a' && S.frontal) { c.a = c.b = Math.max(4, Math.hypot(p.x - o.cx, p.y - o.cy)); c.theta = 0; }
     else if (drag.kind === 'a') { const dx = p.x - o.cx, dy = p.y - o.cy; c.a = Math.max(4, Math.hypot(dx, dy)); c.theta = Math.atan2(dy, dx); }
     else { c.b = Math.max(4, Math.abs((p.x - o.cx) * -Math.sin(o.theta) + (p.y - o.cy) * Math.cos(o.theta))); }
     setCalib(c, true);
@@ -1746,7 +1890,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   }
   function syncControls() {
     $('rngSens').value = S.sensitivity; $('outSens').textContent = S.sensitivity;
-    $('selColor').value = S.laserColor; $('chkTrack').checked = !!S.autoTrack;
+    $('selColor').value = S.laserColor; $('chkTrack').checked = !!S.autoTrack; $('chkFrontal').checked = !!S.frontal;
     $('numLane').value = S.lane; $('selMinScore').value = String(S.minScore);
     $('rngTol').value = S.tolerance; $('outTol').textContent = (S.tolerance > 0 ? '+' : '') + S.tolerance + '%';
     $('selLimit').value = String(S.timeLimit); if ($('selLimit').value !== String(S.timeLimit)) addOption($('selLimit'), S.timeLimit, S.timeLimit + '초');
@@ -1787,6 +1931,10 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     $('chkSound').addEventListener('change', (e) => set('sound', e.target.checked));
     $('chkMissSound').addEventListener('change', (e) => set('missSound', e.target.checked));
     $('chkAutoNext').addEventListener('change', (e) => set('autoNext', e.target.checked));
+    $('chkFrontal').addEventListener('change', (e) => { set('frontal', e.target.checked); if (srcKind && (!calib || !calib.manual)) autoCalibrate(false); });
+    $('btnZoomIn').addEventListener('click', () => zoomStep(1));
+    $('btnZoomOut').addEventListener('click', () => zoomStep(-1));
+    $('btnZoomFit').addEventListener('click', () => zoomFit(false));
     $('txtRoster').addEventListener('change', (e) => { S.shooterIdx = 0; set('roster', e.target.value); });
     $('btnPrevShooter').addEventListener('click', () => moveShooter(-1));
     $('btnNextShooter').addEventListener('click', () => moveShooter(1));
@@ -1834,7 +1982,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   }
   function toggleEdit(on) {
     editMode = on; $('btnEdit').setAttribute('aria-pressed', String(on));
-    if (on) toast(calib ? '가운데 점으로 옮기고, 끝의 두 손잡이로 크기와 기울기를 맞추세요' : '검정 원 가운데를 누르세요', 4000);
+    if (on) toast(!calib ? '검정 원 가운데를 누르세요' : S.frontal ? '가운데 점으로 옮기고, 테두리 손잡이로 크기를 맞추세요' : '가운데 점으로 옮기고, 끝의 두 손잡이로 크기와 기울기를 맞추세요', 4000);
   }
   async function startWithCamera() {
     Sound.unlock();
@@ -1981,7 +2129,12 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     bindControls(); buildLEDs(); syncControls(); renderStats(); renderShooter(); renderLog(); renderTest();
     useDemo();
     requestAnimationFrame(uiLoop);
-    window.addEventListener('resize', () => { fitStage(); layoutLEDs(); });
+    const refit = () => { fitStage(); layoutLEDs(); };
+    window.addEventListener('resize', refit);
+    window.addEventListener('orientationchange', () => setTimeout(refit, 250));
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', refit);
+    if (window.ResizeObserver) { const ro = new ResizeObserver(() => requestAnimationFrame(refit)); ro.observe($('stageSlot')); ro.observe($('ledsWrap')); }
+    renderZoom();
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); resumeVideo(); checkUpdate(true); } });
     $('updateBar').addEventListener('click', () => applyUpdate(true));
     checkUpdate(true); setInterval(() => checkUpdate(false), 5 * 60 * 1000);

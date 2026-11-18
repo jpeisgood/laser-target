@@ -5,12 +5,12 @@
 <text x="14" y="22.5" font-size="3.6" fill="#555">10m 공기권총 표적의 검정 부분과 같은 크기</text>
 <text x="196" y="16" font-size="3.6" fill="#555" text-anchor="end">검정 원 = 명중 (7점 이상)</text>
 <text x="196" y="22.5" font-size="3.6" fill="#555" text-anchor="end">검정 원 지름 59.5 mm</text>
-<circle cx="105.0" cy="140.0" r="74.375" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
-<circle cx="105.0" cy="140.0" r="66.938" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
-<circle cx="105.0" cy="140.0" r="59.500" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
-<circle cx="105.0" cy="140.0" r="52.062" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
-<circle cx="105.0" cy="140.0" r="44.625" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
-<circle cx="105.0" cy="140.0" r="37.188" fill="#fff" stroke="#1b1b1b" stroke-width="0.3"/>
+<circle cx="105.0" cy="140.0" r="74.375" fill="#fff" stroke="#1b1b1b" stroke-width="0.5"/>
+<circle cx="105.0" cy="140.0" r="66.938" fill="#fff" stroke="#1b1b1b" stroke-width="0.5"/>
+<circle cx="105.0" cy="140.0" r="59.500" fill="#fff" stroke="#1b1b1b" stroke-width="0.5"/>
+<circle cx="105.0" cy="140.0" r="52.062" fill="#fff" stroke="#1b1b1b" stroke-width="0.5"/>
+<circle cx="105.0" cy="140.0" r="44.625" fill="#fff" stroke="#1b1b1b" stroke-width="0.5"/>
+<circle cx="105.0" cy="140.0" r="37.188" fill="#fff" stroke="#1b1b1b" stroke-width="0.5"/>
 <circle cx="105.0" cy="140.0" r="29.750" fill="#000"/>
 <circle cx="105.0" cy="140.0" r="22.312" fill="none" stroke="#3c3c3c" stroke-width="0.35"/>
 <circle cx="105.0" cy="140.0" r="14.875" fill="none" stroke="#3c3c3c" stroke-width="0.35"/>
