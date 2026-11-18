@@ -256,6 +256,11 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
 .start-more .btn { flex: 1 1 140px; min-height: 40px; font-size: 14px; }
 .start-note { margin: 0; font-size: 14px; color: var(--amber); }
 .start-note:empty { display: none; }
+.update-bar {
+  position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); z-index: 35;
+  min-height: 44px; padding: 8px 18px; border: 0; border-radius: 999px; background: var(--amber); color: var(--amber-ink);
+  font-weight: 700; cursor: pointer; max-width: calc(100% - 32px);
+}
 .toast {
   position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   z-index: 40; max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 10px;
@@ -488,6 +493,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     </div>
   </section>
 
+  <button class="update-bar" id="updateBar" type="button" hidden>새 버전이 나왔어요 · 눌러서 적용</button>
   <div class="toast" id="toast" hidden role="status"></div>
 </div>
 
@@ -1912,6 +1918,32 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     },
   };
 
+  /* ================= updates =================
+     GitHub Pages lets browsers keep the page for ~10 minutes, home-screen apps even longer. The build writes
+     version.json; when it differs from the running copy we reload with ?v=<new> (a new address skips caches).
+     It applies on its own only when nobody is mid-series; otherwise a button appears at the top. */
+  let updateReady = '';
+  async function checkUpdate(applyIfIdle) {
+    if (!window.LT_STANDALONE || !window.LT_VERSION) return;
+    try {
+      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      const v = (await r.json()).v;
+      if (!v || v === window.LT_VERSION) return;
+      updateReady = v;
+      const idle = attract || (mode === 'board' && game.phase !== 'running' && $('result').hidden);
+      if (applyIfIdle && idle) applyUpdate(false); else $('updateBar').hidden = false;
+    } catch (e) { /* offline: keep running the copy we have */ }
+  }
+  function applyUpdate(force) {
+    const v = updateReady;
+    try {
+      if (!force && sessionStorage.getItem('lt.updatedTo') === v) { $('updateBar').hidden = false; return; } // tried once already
+      sessionStorage.setItem('lt.updatedTo', v);
+    } catch (e) { /* storage blocked */ }
+    const u = new URL(location.href); u.searchParams.set('v', v); location.replace(u.toString());
+  }
+
   /* ================= boot ================= */
   function uiLoop(t) {
     try {
@@ -1939,7 +1971,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     useDemo();
     requestAnimationFrame(uiLoop);
     window.addEventListener('resize', () => { fitStage(); layoutLEDs(); });
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); resumeVideo(); } });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); resumeVideo(); checkUpdate(true); } });
+    $('updateBar').addEventListener('click', () => applyUpdate(true));
+    checkUpdate(true); setInterval(() => checkUpdate(false), 5 * 60 * 1000);
     document.addEventListener('pointerdown', () => Sound.unlock(), { capture: true });
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { readTokens(); fitStage(); layoutLEDs(); });
     if (urlAutostart === 'camera') startWithCamera();

@@ -6,6 +6,8 @@ published as a claude.ai artifact. This script wraps it into docs/index.html, a 
 page that can be hosted anywhere over https (GitHub Pages, school server, ...), and copies the
 printable target PDFs next to it.
 """
+import hashlib
+import json
 import pathlib
 import shutil
 
@@ -16,6 +18,8 @@ DIST = ROOT / "docs"  # GitHub Pages serves this folder (Settings > Pages > main
 
 def build() -> pathlib.Path:
     src = SRC.read_text(encoding="utf-8")
+    # version = fingerprint of the sources; the app compares it with docs/version.json to pick up new builds
+    version = hashlib.sha1((src + (ROOT / "src" / "target.html").read_text(encoding="utf-8")).encode()).hexdigest()[:10]
     cut = src.index('<div id="app"')
     head, body = src[:cut].strip(), src[cut:].strip()
     doc = f"""<!doctype html>
@@ -27,7 +31,7 @@ def build() -> pathlib.Path:
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <style>:root{{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}}</style>
-<script>window.LT_STANDALONE = true;</script>
+<script>window.LT_STANDALONE = true; window.LT_VERSION = "{version}";</script>
 {head}
 </head>
 <body>
@@ -41,6 +45,7 @@ def build() -> pathlib.Path:
     for pdf in (ROOT / "target").glob("*.pdf"):
         shutil.copy2(pdf, DIST / pdf.name)
     shutil.copy2(ROOT / "src" / "target.html", DIST / "target.html")  # 과녁 만들기 (size editor + print)
+    (DIST / "version.json").write_text(json.dumps({"v": version}) + "\n", encoding="utf-8")
     return out
 
 
