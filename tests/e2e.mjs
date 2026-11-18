@@ -33,6 +33,8 @@ page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resourc
 await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 await page.goto(url);
 if (sens) await page.evaluate((s) => window.LaserTarget.configure({ sensitivity: s }), sens);
+// READER=main forces the old <video> frame path; default lets the app read every frame in a worker
+if (process.env.READER) await page.evaluate((r) => window.LaserTarget.configure({ reader: r }), process.env.READER);
 // the synthetic scenes are filmed at an angle; only front_* scenes are head-on
 if (!scene.startsWith('front')) await page.evaluate(() => window.LaserTarget.configure({ frontal: false }));
 await page.click('#btnStartCamera');
@@ -44,7 +46,9 @@ const loopMs = (meta.frames / meta.fps) * 1000;
 await page.waitForFunction((end) => performance.now() > end, startAt + loopMs + 300, { timeout: loopMs + 30000, polling: 250 });
 const r1 = await page.evaluate(() => {
   const d = window.LaserTarget._dbg;
-  return { shots: d.allShots.map((s) => ({ t: s.t, x: s.x, y: s.y, rho: s.rho, hit: s.hit, score: s.score, frames: s.frames })), calib: d.calib, perf: d.perf, src: [document.getElementById('video').videoWidth, document.getElementById('video').videoHeight] };
+  return { shots: d.allShots.map((s) => ({ t: s.t, x: s.x, y: s.y, rho: s.rho, hit: s.hit, score: s.score, frames: s.frames })), calib: d.calib, perf: d.perf, src: [document.getElementById('video').videoWidth, document.getElementById('video').videoHeight],
+    reader: d.rd ? { mode: d.rd.mode, kind: d.rd.kind, reason: d.rd.reason, match: d.rd.match, dropped: d.rd.dropped } : null,
+    fs: d.frameStats ? d.frameStats() : { cam: 0, proc: 0 }, lost: d.fst ? d.fst.lost : 0, seen: d.fst ? d.fst.seen : 0 };
 });
 await page.screenshot({ path: `tests/out/${scene}-setup.png` });
 
@@ -70,6 +74,7 @@ for (const g of meta.shots) {
 const fps_ = r1.perf.fps.toFixed(1), proc = r1.perf.procMs.toFixed(2);
 const before = rows.filter((r) => r.g.frame / fps * 1000 < calibAt - startAt + 200);
 console.log(`\n=== ${scene}  (camera ${r1.src.join('x')}, processed ${fps_} fps, ${proc} ms/frame, frame offset ${off.toFixed(1)}) ===`);
+console.log(`frames: reader ${JSON.stringify(r1.reader)} · seen ${r1.seen} · lost ${r1.lost} · camera ${r1.fs.cam.toFixed(1)}/s processed ${r1.fs.proc.toFixed(1)}/s`);
 console.log(`calibration: center (${r1.calib.cx.toFixed(1)}, ${r1.calib.cy.toFixed(1)})  a=${r1.calib.a.toFixed(1)} b=${r1.calib.b.toFixed(1)}  true center (${meta.truth.center.map((v) => v.toFixed(1)).join(', ')})`);
 console.log('frame  true-rho  hit | found  err(px)  app-rho  app-hit  score  frames  note');
 let found = 0, agree = 0, fp = 0, rhoErr = [];

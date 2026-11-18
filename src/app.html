@@ -229,6 +229,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
 .stats4 span { font-size: 12px; color: var(--ink-2); }
 .stats4 b { font-family: var(--font-display); font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mono { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); overflow-wrap: anywhere; }
+.mono[data-warn="1"] { color: var(--amber); }
+.step h4 { margin: 6px 0 0; font-size: 14px; font-weight: 700; color: var(--ink); }
 .log-wrap { max-height: 260px; overflow: auto; }
 .log { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .log th, .log td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -398,6 +400,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
             <div><span>빛 지속</span><b id="testDur">-</b></div>
           </div>
           <p class="mono" id="testSig">마지막 발의 신호 세기가 여기에 나와요.</p>
+          <p class="mono" id="frameInfo"></p>
           <div class="row"><button class="btn btn-quiet" id="btnTestClear" type="button">시험 기록 지우기</button></div>
           <p class="hint">안 잡히면 감도를 올리고, 쏘지 않았는데 잡히면 내리세요. 야외에서는 과녁에 <b>그늘(차양)</b>을 만들면 훨씬 잘 잡혀요.</p>
         </section>
@@ -458,10 +461,18 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
 
         <section class="step">
           <h3>진단</h3>
-          <p class="hint">쏘지 않았는데 잡히거나, 맞혔는데 안 잡히면 <b>이 칸을 캡처해서 보내 주세요.</b> 감지된 순간의 작은 사진(그때 · 바로 전)과 판정 이유가 최근 것부터 나와요.</p>
-          <p class="mono" id="diagInfo"></p>
+          <p class="hint">쏘지 않았는데 잡히거나, 맞혔는데 안 잡히면 <b>이 칸을 캡처해서 보내 주세요.</b> 위 그림은 감지된 자리(번호 = 아래 목록), 아래는 그 순간의 작은 사진(그때 · 바로 전)과 판정 이유예요.</p>
+          <p class="mono" id="diagInfo" style="white-space:pre-line"></p>
           <canvas id="diagCanvas" aria-label="최근 감지 기록"></canvas>
           <div class="row"><button class="btn btn-quiet" id="btnDiagClear" type="button">진단 기록 지우기</button></div>
+          <h4>진단 녹화</h4>
+          <p class="hint">카메라 영상을 12초 녹화하고, 그동안 앱이 프레임마다 본 것을 함께 파일로 남겨요. 녹화 중에 <b>검정에 3발, 흰 곳에 2발</b>쯤 쏴 주세요. 저장한 두 파일(영상 + 기록 .txt)을 보내 주면 무엇을 놓쳤는지 그대로 다시 돌려 볼 수 있어요.</p>
+          <div class="row">
+            <button class="btn" id="btnRec" type="button">진단 녹화 12초</button>
+            <button class="btn btn-quiet" id="btnRecSave" type="button" hidden>녹화 저장 · 보내기</button>
+          </div>
+          <p class="mono" id="recInfo"></p>
+          <p class="hint" id="recUpload" hidden>보내는 법: 저장 · 보내기 → <b>파일에 저장</b> → 아래 링크에서 GitHub에 로그인하고 두 파일을 끌어 넣은 뒤 <b>Commit changes</b>. <a id="lnkUpload" href="#" target="_blank" rel="noopener">GitHub diag 폴더에 올리기</a></p>
         </section>
 
         <details class="adv">
@@ -484,8 +495,15 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
             <div id="camControls" style="display:grid;gap:10px"></div>
             <label class="field"><span>레이저 방식</span>
               <select id="selLaserMode">
-                <option value="blink">방아쇠를 당기면 깜빡 (기본)</option>
+                <option value="blink">방아쇠를 당기면 짧게 깜빡 (기본)</option>
+                <option value="blink2">깜빡 0.1초 이상 (두 장 이상 찍혀야 인정 · 오인식 가장 적음)</option>
                 <option value="steady">당기는 동안 계속 켜짐</option>
+              </select>
+            </label>
+            <label class="field"><span>프레임 읽기</span>
+              <select id="selReader">
+                <option value="auto">모든 프레임 읽기 (자동 · 권장)</option>
+                <option value="main">화면에 보이는 프레임만 (예전 방식)</option>
               </select>
             </label>
             <label class="field"><span>레이저 색</span>
@@ -540,7 +558,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   const DEFAULTS = {
     lane: 1, hitsNeeded: 5, minScore: 7, tolerance: 0, timeLimit: 0, resetDelay: 5,
     sensitivity: 6, laserColor: 'red', minInterval: 250, sound: true, missSound: false,
-    procSize: 480, autoTrack: true, deviceId: '', resolution: '1280x720', roster: '', autoNext: true, shooterIdx: 0, frontal: true, laserMode: 'blink',
+    procSize: 400, autoTrack: true, deviceId: '', resolution: '1280x720', roster: '', autoNext: true, shooterIdx: 0, frontal: true, laserMode: 'blink',
+    reader: 'auto',
   };
   const store = {
     get(k, d) { try { const v = localStorage.getItem('laserrun.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -550,7 +569,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   if ((saved.v || 1) < 2) { delete saved.timeLimit; delete saved.sensitivity; } // v2: no time limit by default, new detector scale
   if ((saved.v || 1) < 3 && saved.resolution === '1280x720') delete saved.resolution; // v3: sharper default image
   if ((saved.v || 1) < 4 && saved.resolution === '1920x1080') delete saved.resolution; // v4: frame rate first (60 fps at 720p)
-  const S = Object.assign({}, DEFAULTS, saved, { v: 4 });
+  if ((saved.v || 1) < 5 && saved.procSize === 480) delete saved.procSize; // v5: lighter per-frame work so no camera frame is skipped
+  const S = Object.assign({}, DEFAULTS, saved, { v: 5 });
   const saveSettings = () => store.set('settings', S);
   let urlAutostart = '';
   try {
@@ -876,9 +896,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       if (!this.rowG || this.rowG[0].length !== h) { this.bandC = new Float64Array(nb * 3); this.bandB = new Float64Array(nb * 3); this.bandG = new Float32Array(nb * 3); this.rowG = [new Float32Array(h), new Float32Array(h), new Float32Array(h)]; }
       const C = this.bandC.fill(0), B = this.bandB.fill(0), G = this.bandG, pv = this.prev;
       let bigN = 0;
-      for (let y = 0; y < h; y++) {
+      for (let y = 0; y < h; y += 2) {
         const k3 = (y >> 3) * 3;
-        for (let x = y & 1; x < w; x += 2) {
+        for (let x = (y >> 1) & 1; x < w; x += 2) {
           const i = y * w + x, p = i << 2, q = i * 3, r = d[p], g = d[p + 1], bl = d[p + 2], br = bg[q], bgg = bg[q + 1], bb = bg[q + 2];
           if (pv && Math.abs(r + 2 * g + bl - (pv[p] + 2 * pv[p + 1] + pv[p + 2])) > 160) bigN++; // moving right now
           if (Math.abs(r - br * g0) > 20 || Math.abs(g - bgg * g0) > 20 || Math.abs(bl - bb * g0) > 20) continue; // something real changed here
@@ -896,7 +916,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         const fy = (y - 3.5) / 8, k0 = clamp(Math.floor(fy), 0, nb - 1), k1 = Math.min(nb - 1, k0 + 1), t = clamp(fy - k0, 0, 1);
         for (let c = 0; c < 3; c++) this.rowG[c][y] = G[k0 * 3 + c] * (1 - t) + G[k1 * 3 + c] * t;
       }
-      this.bigFrac = bigN / (n / 2); // share of pixels that changed a lot (luma > 40) since the previous frame
+      this.bigFrac = bigN / (n / 4); // share of pixels that changed a lot (luma > 40) since the previous frame
       return g0;
     }
     /* Two checks that tell a blink from things that merely changed.
@@ -1069,8 +1089,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       const bg = this.bg, c0 = this.c0, c1 = this.c1, c2 = this.c2;
       const G0 = this.rowG[c0], G1 = this.rowG[c1], G2 = this.rowG[c2];
       const ox = zb.x0 - 1, oy = zb.y0 - 1, bw = zb.x1 - zb.x0 + 3, bh = zb.y1 - zb.y0 + 3, m = bw * bh;
-      if (!this.fs || this.fs.length !== m) {
-        this.zs = new Float32Array(m); this.zr = new Float32Array(m); this.ht = new Float32Array(m); this.hr = new Float32Array(m);
+      if (!this.fs || this.fs.length !== m || this.zs.length !== bw) {
+        this.zs = new Float32Array(bw); this.zr = new Float32Array(m); this.ht = new Float32Array(m); this.hr = new Float32Array(m);
         this.fs = new Float32Array(m); this.fr = new Float32Array(m); this.markB = new Uint8Array(m);
         this.candB = new Int32Array(Math.min(m, 4096)); this.stackB = new Int32Array(Math.min(m, 4096));
       }
@@ -1079,29 +1099,30 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       const zs = this.zs, zr = this.zr, ht = this.ht, hr = this.hr, fs = this.fs, fr = this.fr, markB = this.markB, zv = this.zv, zage = this.zage;
       const typ = this.typVar > 0 ? this.typVar : 400;
       const sdAt = (i) => Math.sqrt(zage[i] >= 12 ? zv[i] : Math.max(zv[i], typ)) * 1.1 + 1.5;
+      // red excess per pixel (zs, one row at a time) and red rise (zr), then 3x3 sums of both (fs, fr)
       for (let ly = 0; ly < bh; ly++) {
-        const y = oy + ly, g0r = G0[y], g1r = G1[y], g2r = G2[y];
+        const y = oy + ly, g0r = G0[y], g1r = G1[y], g2r = G2[y], r = ly * bw, base = y * w + ox;
         for (let lx = 0; lx < bw; lx++) {
-          const i = y * w + ox + lx, p = i << 2, q = i * 3, k = ly * bw + lx;
+          const i = base + lx, p = i << 2, q = i * 3;
           const e0 = d[p + c0] - bg[q + c0] * g0r, e1 = d[p + c1] - bg[q + c1] * g1r, e2 = d[p + c2] - bg[q + c2] * g2r;
-          zs[k] = e0 - (e1 > e2 ? e1 : e2); zr[k] = e0;
+          zs[lx] = e0 - (e1 > e2 ? e1 : e2); zr[r + lx] = e0;
         }
+        for (let lx = 1; lx < bw - 1; lx++) { const k = r + lx; ht[k] = zs[lx - 1] + zs[lx] + zs[lx + 1]; hr[k] = zr[k - 1] + zr[k] + zr[k + 1]; }
       }
-      for (let ly = 0; ly < bh; ly++) { const r = ly * bw; for (let lx = 1; lx < bw - 1; lx++) { const k = r + lx; ht[k] = zs[k - 1] + zs[k] + zs[k + 1]; hr[k] = zr[k - 1] + zr[k] + zr[k + 1]; } }
-      for (let ly = 1; ly < bh - 1; ly++) { const r = ly * bw; for (let lx = 1; lx < bw - 1; lx++) { const k = r + lx; fs[k] = ht[k - bw] + ht[k] + ht[k + bw]; fr[k] = hr[k - bw] + hr[k] + hr[k + bw]; } }
       const zLow = this.zLow, floorB = this.floorB, cand = this.candB, cap = cand.length;
       let nc = 0, over = false, zoneN = 0, peakZ = 0;
       for (let ly = 1; ly < bh - 1; ly++) {
-        const y = oy + ly;
+        const y = oy + ly, r = ly * bw, base = y * w + ox, gy = G0[y];
         for (let lx = 1; lx < bw - 1; lx++) {
-          const i = y * w + ox + lx;
+          const k = r + lx, f = ht[k - bw] + ht[k] + ht[k + bw], fR = hr[k - bw] + hr[k] + hr[k + bw];
+          fs[k] = f; fr[k] = fR;
+          const i = base + lx;
           if (!zone[i]) continue;
           zoneN++;
-          const k = ly * bw + lx, f = fs[k];
-          if (f <= floorB || fr[k] < 0.6 * f) continue;
+          if (f <= floorB || fR < 0.6 * f) continue;
           const z = f / sdAt(i);
           if (z > peakZ) peakZ = z;
-          if (z < zLow || bg[i * 3 + c0] * G0[y] > 240) continue;
+          if (z < zLow || bg[i * 3 + c0] * gy > 240) continue;
           if (nc < cap) { cand[nc++] = k; markB[k] = 1; } else over = true;
         }
       }
@@ -1159,7 +1180,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           if (!best || e.energy > best.energy) best = e;
         }
       }
-      // learn each pixel's noise on calm frames only (a clipped update so a missed flash cannot inflate it)
+      // learn each pixel's noise on calm frames only (a clipped update so a missed flash cannot inflate it).
+      // Every frame and the whole box, not just the zone: a pixel that enters the zone when the outline is nudged
+      // must already know its own noise (an average guess there caused false alarms in the outdoor test).
       if (!big && !calmBroken) {
         for (const b of out) for (let ly = Math.max(1, b.y0 - oy - 2); ly <= Math.min(bh - 2, b.y1 - oy + 2); ly++) for (let lx = Math.max(1, b.x0 - ox - 2); lx <= Math.min(bw - 2, b.x1 - ox + 2); lx++) markB[ly * bw + lx] = 3;
         let sumV = 0, cntV = 0;
@@ -1201,24 +1224,28 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
      when it goes out. With the default blinking gun, a light still on after 0.5 s is not counted. */
   class ShotTracker {
     constructor(onShot) { this.onShot = onShot; this.reset(); }
-    reset() { this.state = 'ready'; this.lastShot = -1e9; this.lastSeen = -1e9; this.best = null; this.start = 0; this.frames = 0; }
+    reset() { this.state = 'ready'; this.lastShot = -1e9; this.lastSeen = -1e9; this.best = null; this.start = 0; this.frames = 0; this.lostB = 0; this.lostIn = 0; this.lostA = 0; }
     update(blob, t) {
+      const lost = fst.lastLost; // camera frames the app never saw right before this one
       if (this.state === 'ready') {
-        if (blob && t - this.lastShot >= S.minInterval) { this.state = 'active'; this.start = t; this.best = blob; this.frames = 1; this.lastSeen = t; }
+        if (blob && t - this.lastShot >= S.minInterval) { this.state = 'active'; this.start = t; this.best = blob; this.frames = 1; this.lastSeen = t; this.lostB = lost; this.lostIn = 0; this.lostA = 0; }
       } else if (this.state === 'active') {
-        if (blob) { this.lastSeen = t; this.frames++; if (blob.energy > this.best.energy) this.best = blob; }
+        if (blob) { this.lastSeen = t; this.frames++; this.lostIn += lost; if (blob.energy > this.best.energy) this.best = blob; }
         const steady = S.laserMode === 'steady';
         if (!blob || (steady && t - this.start >= 170)) {
-          this.state = 'cooldown'; this.lastShot = this.start;
-          this.onShot(this.best, this.start, this.frames);
+          this.state = 'cooldown'; this.lastShot = this.start; if (!blob) this.lostA = lost;
+          // 0.1 s gun: a real blink shows in two frames or more (a frame the app missed next to it counts too)
+          const seen = this.frames + this.lostIn + (this.lostB > 0 ? 1 : 0) + (this.lostA > 0 ? 1 : 0);
+          if (S.laserMode === 'blink2' && seen < 2) { if (this.onIgnore) this.onIgnore(this.best, this.start, this.frames, 'short'); }
+          else this.onShot(this.best, this.start, this.frames);
         } else if (t - this.start >= 500) {
           // a blinking gun's light is gone within half a second; a light that stays is a reflection,
           // a lamp or something red that arrived, not a shot
           this.state = 'cooldown'; this.lastShot = this.start;
-          if (this.onIgnore) this.onIgnore(this.best, this.start, this.frames);
+          if (this.onIgnore) this.onIgnore(this.best, this.start, this.frames, 'long');
         }
       } else {
-        if (blob) { this.lastSeen = t; if (t - this.start > 1500) detector.absorb = 20; }
+        if (blob) { this.lastSeen = t; if (t - this.start > 1500) detAbsorb(20); }
         if (t - this.lastSeen >= 90 && t - this.lastShot >= S.minInterval) this.state = 'ready';
       }
     }
@@ -1314,18 +1341,152 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   let loopToken = 0, autoTimer = 0, trackFails = 0, trackRuns = 0, lastTrack = 0, lastSeenT = -1e9, meterVal = 0;
   const detector = new LaserDetector();
   const tracker = new ShotTracker(handleShot);
-  tracker.onIgnore = (blob, t, frames) => addDiag('ignored', blob, frames, null);
+  tracker.onIgnore = (blob, t, frames, why) => addDiag(why === 'short' ? 'short' : 'ignored', blob, frames, null, t);
   const diag = [];
-  function addDiag(kind, blob, frames, ev) {
+  function addDiag(kind, blob, frames, ev, t) {
     if (!blob) return;
-    diag.unshift({ at: Date.now(), kind, mode, tier: blob.tier || 'A', z: blob.z || 0, peak: blob.peak || 0, frames, crop: blob.crop, bgCrop: blob.bgCrop,
-      hit: ev ? ev.hit : null, score: ev ? ev.score : null, calibrated: !!calib });
+    let ux = null, uy = null, rho = null;
+    if (ev && calib) { ux = ev.ux; uy = ev.uy; rho = ev.rho; }
+    else if (calib) { const u = ellToUnit(calib, blob.x, blob.y); ux = u[0]; uy = u[1]; rho = ellRho(calib, blob.x, blob.y); }
+    const e = { at: Date.now(), kind, mode, tier: blob.tier || 'A', z: blob.z || 0, peak: blob.peak || 0, frames, crop: blob.crop, bgCrop: blob.bgCrop,
+      hit: ev ? ev.hit : null, score: ev ? ev.score : null, calibrated: !!calib, ux, uy, rho, lostB: tracker.lostB, lostIn: tracker.lostIn, lostA: tracker.lostA, rd: rd.mode };
+    diag.unshift(e);
     if (diag.length > 12) diag.length = 12;
+    if (rec.on) rec.events.push({ t: Math.round(t || performance.now()), kind, x: Math.round(blob.x), y: Math.round(blob.y), rho: rho == null ? null : +rho.toFixed(3), score: e.score, hit: e.hit,
+      tier: e.tier, z: +e.z.toFixed(1), peak: +e.peak.toFixed(1), frames, lostB: e.lostB, lostIn: e.lostIn, lostA: e.lostA });
     if (mode === 'setup') { clearTimeout(addDiag.t); addDiag.t = setTimeout(renderDiag, 120); } // never inside the camera loop
   }
   const recent = [], allShots = [], frameLog = [];
   const test = { count: 0, hits: 0, misses: 0, frames: 0 };
-  const perf = { fps: 0, lastT: 0, procMs: 0, frames: 0 };
+  const perf = { fps: 0, lastT: 0, procMs: 0, frames: 0, readMs: 0, detMs: 0, maxMs: 0, pw: 0, ph: 0 };
+  const live = { peak: 0, peakZ: 0, moved: 0, stale: 0 }; // latest numbers from whichever path runs the detector
+  const diagBase = { moved: 0, stale: 0 };
+
+  /* ---------- diagnosis recording ----------
+     The raw camera for 12 s (every frame the tablet really got) plus, per processed frame, what the app made of
+     it. On a computer the video can then be run through the same detector again, frame by frame. */
+  const REC_SECONDS = 12;
+  const rec = { on: false, mr: null, chunks: [], t0: 0, startAt: 0, frames: [], events: [], file: null, json: null, mime: '', timer: 0, meta: null };
+  function recStart() {
+    if (rec.on) return;
+    if (srcKind !== 'camera' || !stream || typeof MediaRecorder !== 'function') { toast('카메라를 켠 상태에서만 녹화할 수 있어요', 3000); return; }
+    let mime = '';
+    for (const x of ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm']) {
+      try { if (MediaRecorder.isTypeSupported(x)) { mime = x; break; } } catch (e) { /* ask the next one */ }
+    }
+    let mr;
+    try { mr = new MediaRecorder(stream, Object.assign({ videoBitsPerSecond: 10000000 }, mime ? { mimeType: mime } : {})); }
+    catch (e) { try { mr = new MediaRecorder(stream); } catch (err) { toast('이 기기에서는 녹화를 할 수 없어요', 3000); return; } }
+    Object.assign(rec, { mr, chunks: [], frames: [], events: [], file: null, json: null, mime: mr.mimeType || mime, t0: performance.now(), startAt: Date.now(), on: true });
+    rec.meta = recMeta();
+    mr.ondataavailable = (e) => { if (e.data && e.data.size) rec.chunks.push(e.data); };
+    mr.onstart = () => { rec.t0 = performance.now(); };
+    mr.onstop = recFinish;
+    mr.onerror = () => { toast('녹화 중 오류가 났어요', 3000); recStop(); };
+    try { mr.start(1000); } catch (e) { rec.on = false; rec.mr = null; toast('녹화를 시작하지 못했어요', 3000); return; }
+    clearTimeout(rec.timer); rec.timer = setTimeout(recStop, REC_SECONDS * 1000);
+    renderRec();
+  }
+  function recStop() {
+    clearTimeout(rec.timer);
+    if (rec.mr && rec.mr.state !== 'inactive') { try { rec.mr.stop(); } catch (e) { recFinish(); } }
+    else if (rec.on) recFinish();
+  }
+  function recFinish() {
+    if (!rec.mr) return;
+    rec.on = false;
+    const type = (rec.mime || 'video/mp4').split(';')[0], ext = /webm/.test(type) ? 'webm' : 'mp4';
+    const d = new Date(rec.startAt), pad = (v) => String(v).padStart(2, '0');
+    const base = `laser-diag-lane${S.lane}-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    const rel = (x) => Object.assign({}, x, { t: Math.round(x.t - rec.t0) });
+    const log = Object.assign({}, rec.meta, { end: recMeta(), video: base + '.' + ext, mime: rec.mime, frames: rec.frames.map(rel), events: rec.events.map(rel) });
+    rec.file = new File(rec.chunks, base + '.' + ext, { type });
+    // .txt so every share sheet accepts it; the content is JSON
+    rec.json = new File([JSON.stringify(log)], base + '-log.txt', { type: 'text/plain' });
+    rec.chunks = []; rec.frames = []; rec.events = []; rec.mr = null;
+    renderRec();
+  }
+  function recMeta() {
+    const st = Object.assign({}, S);
+    delete st.roster; delete st.shooterIdx; // no student names in the file
+    return {
+      app: window.LT_VERSION || 'preview', at: new Date().toISOString(), ua: navigator.userAgent, screen: [screen.width, screen.height, window.devicePixelRatio || 1],
+      size: [video.videoWidth, video.videoHeight], settings: st, calib, roi, proc: [perf.pw, perf.ph], zoom: { hw: zoom.hw, cam: zoom.cam, view: zoom.view },
+      reader: { mode: rd.mode, kind: rd.kind, reason: rd.reason, match: rd.match || null, dropped: rd.dropped }, camera: camInfo(),
+      frameStats: frameStats(), lostTotal: fst.lost, seenTotal: fst.seen,
+      perf: { fps: +perf.fps.toFixed(1), procMs: +perf.procMs.toFixed(2), readMs: +perf.readMs.toFixed(2), detMs: +perf.detMs.toFixed(2), maxMs: +perf.maxMs.toFixed(1) },
+      detector: { thr: detector.thr, zLow: detector.zLow, zSingle: detector.zSingle, floorB: detector.floorB, moved: live.moved, stale: live.stale },
+    };
+  }
+  async function recShare() {
+    if (!rec.file) return;
+    const both = [rec.file, rec.json];
+    try {
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: both })) { await navigator.share({ files: both }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    recDownload(rec.file); setTimeout(() => recDownload(rec.json), 900);
+  }
+  function recDownload(f) {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; a.hidden = true;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
+  }
+  function uploadURL() {
+    const h = location.hostname, seg = location.pathname.split('/').filter(Boolean)[0];
+    return /\.github\.io$/.test(h) && seg ? `https://github.com/${h.split('.')[0]}/${seg}/upload/main/diag` : '';
+  }
+  function renderRec() {
+    const b = $('btnRec'), info = $('recInfo');
+    if (rec.on) {
+      const left = Math.max(0, Math.ceil(REC_SECONDS - (performance.now() - rec.t0) / 1000));
+      b.textContent = `녹화 중 ${left}초 · 누르면 멈춤`; info.textContent = `프레임 ${rec.frames.length}장 기록 · 감지 ${rec.events.length}번`;
+    } else {
+      b.textContent = rec.file ? '다시 녹화 12초' : '진단 녹화 12초';
+      info.textContent = rec.file ? `녹화 끝: 영상 ${(rec.file.size / 1048576).toFixed(1)}MB + 기록 ${Math.max(1, Math.round(rec.json.size / 1024))}KB · ${rec.file.name}` : '';
+    }
+    $('btnRecSave').hidden = !rec.file || rec.on;
+    $('recUpload').hidden = !rec.file || rec.on || !uploadURL();
+  }
+
+  /* Camera frames the app never looked at. A blink that lasts one frame is simply gone if its frame is
+     skipped, so this is counted per frame (lastLost: just before the current one) and shown on screen. */
+  const fst = { pf: -1, mt: -1, med: 0, dts: [], k: 0, lost: 0, seen: 0, lastLost: 0, win: [] };
+  function fstReset() { Object.assign(fst, { pf: -1, mt: -1, med: 0, dts: [], k: 0, lost: 0, seen: 0, lastLost: 0, win: [] }); }
+  function noteFrame(lost, t) {
+    fst.seen++; fst.lost += lost; fst.lastLost = lost;
+    fst.win.push({ t, lost });
+    while (fst.win.length > 2 && t - fst.win[0].t > 3000) fst.win.shift();
+  }
+  function frameStats() {
+    const w = fst.win;
+    if (w.length < 3) return { cam: 0, proc: 0, lostPct: 0 };
+    const span = (w[w.length - 1].t - w[0].t) / 1000;
+    let lost = 0;
+    for (let i = 1; i < w.length; i++) lost += w[i].lost;
+    if (span <= 0) return { cam: 0, proc: 0, lostPct: 0 };
+    return { cam: (w.length - 1 + lost) / span, proc: (w.length - 1) / span, lostPct: (100 * lost) / (w.length - 1 + lost) };
+  }
+  // <video> path: the browser numbers the frames it shows (presentedFrames) and stamps them (mediaTime)
+  function rvfcLost(md) {
+    if (!md) return 0;
+    let lost = 0;
+    if (typeof md.presentedFrames === 'number') {
+      if (fst.pf >= 0) { const d = md.presentedFrames - fst.pf; if (d > 1 && d < 600) lost = d - 1; }
+      fst.pf = md.presentedFrames;
+    }
+    if (typeof md.mediaTime === 'number' && md.mediaTime > 0) {
+      if (fst.mt > 0 && md.mediaTime > fst.mt) {
+        const dt = (md.mediaTime - fst.mt) * 1000;
+        fst.dts.push(dt); if (fst.dts.length > 61) fst.dts.shift();
+        if ((fst.k++ & 15) === 0) { const s = fst.dts.slice().sort((a, b) => a - b); fst.med = s[s.length >> 1]; }
+        if (fst.med > 4 && fst.med < 100 && dt > 1.5 * fst.med) lost = Math.max(lost, Math.round(dt / fst.med) - 1);
+      }
+      fst.mt = md.mediaTime;
+    }
+    return lost;
+  }
+  // the detector may run here or in the frame worker (rd); settings and nudges go to both
+  function detCfg() { detector.configure(S.sensitivity, S.laserColor); if (rd.w) rd.w.postMessage({ type: 'cfg', sens: S.sensitivity, color: S.laserColor }); }
+  function detAbsorb(n) { detector.absorb = n; if (rd.w) rd.w.postMessage({ type: 'absorb', n }); }
   const events = [];
   const game = { phase: 'ready', hits: 0, shots: 0, t0: 0, tEnd: 0, list: [], timer: 0, resetAt: 0 };
   let log = store.get('log', []);
@@ -1351,6 +1512,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   }
   function stopSource() {
     loopToken++;
+    rdStop(''); recStop();
     clearTimeout(autoTimer);
     if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; track = null; }
     if (fileURL) { URL.revokeObjectURL(fileURL); fileURL = null; }
@@ -1387,6 +1549,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     track.addEventListener('ended', () => { if (srcKind === 'camera') toast('카메라 연결이 끊겼어요. 설정에서 카메라를 다시 켜 주세요.', 5000); updateChips(); });
     onSourceReady();
     listCameras(); buildCamControls(); initZoom();
+    rd.retries = 0; rdStart();
   }
   async function useFile(file) {
     stopSource();
@@ -1410,7 +1573,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       const saved = store.get('calib', null);
       if (saved && saved.w === sw && saved.h === sh && saved.a > 0 && saved.b > 0) calib = Object.assign({}, saved);
     }
-    roi = null; trackFails = 0; autoCalFailed = false; detector.reset(); tracker.reset(); perf.startAt = performance.now();
+    roi = null; trackFails = 0; autoCalFailed = false; detector.reset(); tracker.reset(); fstReset(); perf.startAt = performance.now();
     syncSourceUI(); fitStage(); updateChips(); updateCalibInfo();
     startLoop();
     if (!calib) scheduleAutoCalib(0);
@@ -1493,8 +1656,17 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       const [sw, sh] = srcSize(), k = z / old;
       setCalib(Object.assign({}, calib, { cx: sw / 2 + (calib.cx - sw / 2) * k, cy: sh / 2 + (calib.cy - sh / 2) * k, a: calib.a * k, b: calib.b * k }));
       lastTrack = 0;
-      if (!calib.manual) setTimeout(() => { if (srcKind === 'camera') autoCalibrate(true); }, 700);
+      if (!calib.manual) recheckSoon(0);
     }
+  }
+  // the outline was only moved by arithmetic when the camera zoomed: look for the target again, a few times if needed
+  function recheckSoon(n) {
+    clearTimeout(recheckSoon.t);
+    recheckSoon.t = setTimeout(async () => {
+      if (srcKind !== 'camera' || !calib || calib.manual) return;
+      if (await autoCalibrate(true)) return;
+      if (n < 4) recheckSoon(n + 1); else { trackFails = 3; updateChips(); }
+    }, n === 0 ? 700 : 1200);
   }
   function zoomStep(dir) {
     const f = dir > 0 ? 1.2 : 1 / 1.2;
@@ -1574,14 +1746,14 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   }
   // keep following the paper if it shifts a little (runs every ~1.2 s, between flashes)
   let trackBusy = false;
-  function trackTarget(kx, ky) {
-    if (trackBusy || calibBusy) return;
-    trackRuns++;
-    const pw = proc.width, ph = proc.height, k = Math.min(1, 260 / Math.max(pw, ph));
-    const w = Math.max(24, Math.round(pw * k)), h = Math.max(24, Math.round(ph * k));
+  function trackTarget() {
+    if (trackBusy || calibBusy || !roi) return;
+    const m = Math.max(roi.w, roi.h), k = Math.min(1, 260 / m, S.procSize / m);
+    const w = Math.max(24, Math.round(roi.w * k)), h = Math.max(24, Math.round(roi.h * k));
     small.width = w; small.height = h;
-    sctx.drawImage(proc, 0, 0, w, h);
-    const fx = kx * (pw / w), fy = ky * (ph / h);
+    try { sctx.drawImage(srcEl(), roi.x, roi.y, roi.w, roi.h, 0, 0, w, h); } catch (e) { return; }
+    trackRuns++;
+    const fx = roi.w / w, fy = roi.h / h;
     const hint = { cx: (calib.cx - roi.x) / fx, cy: (calib.cy - roi.y) / fy, r: Math.max(3, (calib.a / fx) * 0.3) };
     const calib0 = calib, roi0 = roi;
     trackBusy = true;
@@ -1607,9 +1779,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
 
   /* ================= frame loop ================= */
   // Tier B of the detector looks at the whole printed target (out to ring 1), in processed-image pixels.
-  let zoneKey = '';
+  let zoneKey = '', zoneMask = null, zoneBox = null;
   function updateZone(pw, ph, kx, ky) {
-    if (!calib) { if (zoneKey) { zoneKey = ''; detector.setZone(null, null); } return; }
+    if (!calib) { if (zoneKey) { zoneKey = ''; zoneMask = null; zoneBox = null; detector.setZone(null, null); } return; }
     const hr = Math.max(hitRho() * 1.15, 2.6); // whole target: hits on the white rings get their X too
     const key = [roi.x, roi.y, roi.w, roi.h, pw, ph, Math.round(calib.cx), Math.round(calib.cy), Math.round(calib.a), Math.round(calib.b), calib.theta.toFixed(2), hr.toFixed(3)].join('|');
     if (key === zoneKey) return;
@@ -1629,8 +1801,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         }
       }
     }
-    if (x1 < x0) detector.setZone(null, null);
-    else detector.setZone(mask, { x0, y0, x1, y1 });
+    if (x1 < x0) { zoneMask = null; zoneBox = null; }
+    else { zoneMask = mask; zoneBox = { x0, y0, x1, y1 }; }
+    detector.setZone(zoneMask, zoneBox);
   }
   function startLoop() {
     const token = ++loopToken;
@@ -1643,7 +1816,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       };
       requestAnimationFrame(step);
     } else if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
-      const cb = () => { if (token !== loopToken) return; onFrame(performance.now()); video.requestVideoFrameCallback(cb); };
+      const cb = (now, md) => { if (token !== loopToken) return; onFrame(performance.now(), md); video.requestVideoFrameCallback(cb); };
       video.requestVideoFrameCallback(cb);
     } else {
       let lastTime = -1;
@@ -1655,36 +1828,272 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       requestAnimationFrame(step);
     }
   }
-  function onFrame(t) {
-    const [sw, sh] = srcSize();
-    if (!sw || !sh || (srcKind !== 'demo' && video.readyState < 2)) return;
+  // where in the picture to look, and at what size (shared by both frame paths)
+  function frameGeometry(sw, sh) {
     if (calib && (calib.w !== sw || calib.h !== sh)) {
       if (Math.abs(calib.w / calib.h - sw / sh) < 0.01) { const k = sw / calib.w; calib = Object.assign({}, calib, { cx: calib.cx * k, cy: calib.cy * k, a: calib.a * k, b: calib.b * k, w: sw, h: sh }); }
       else { calib = null; scheduleAutoCalib(0); }
       roi = null; fitStage(); updateCalibInfo();
     }
-    if (!roi) { roi = computeROI(sw, sh); detector.reset(); }
-    const t0 = performance.now();
+    if (!roi) roi = computeROI(sw, sh);
     const k = Math.min(1, S.procSize / Math.max(roi.w, roi.h));
     const pw = Math.max(8, Math.round(roi.w * k)), ph = Math.max(8, Math.round(roi.h * k));
+    perf.pw = pw; perf.ph = ph;
+    return { pw, ph, kx: roi.w / pw, ky: roi.h / ph };
+  }
+  /* The <video> path: runs on the page for every frame the browser shows. */
+  function onFrame(t, md) {
+    const [sw, sh] = srcSize();
+    if (!sw || !sh || (srcKind !== 'demo' && video.readyState < 2)) return;
+    noteFrame(rvfcLost(md), t);
+    const roi0 = roi, { pw, ph, kx, ky } = frameGeometry(sw, sh);
+    if (roi !== roi0) detector.reset();
+    const t0 = performance.now();
     if (proc.width !== pw || proc.height !== ph) { proc.width = pw; proc.height = ph; detector.reset(); }
     try { pctx.drawImage(srcEl(), roi.x, roi.y, roi.w, roi.h, 0, 0, pw, ph); } catch (e) { return; }
-    const kx = roi.w / pw, ky = roi.h / ph;
     updateZone(pw, ph, kx, ky);
-    const b = detector.process(pctx.getImageData(0, 0, pw, ph));
+    const img = pctx.getImageData(0, 0, pw, ph);
+    const t1 = performance.now();
+    const b = detector.process(img);
+    const t2 = performance.now();
     const blob = b ? { x: roi.x + b.x * kx, y: roi.y + b.y * ky, energy: b.energy, area: b.area, peak: b.peak, tier: b.tier || 'A', z: b.z || 0 } : null;
     if (blob && pw >= 48 && ph >= 48) {
       const x0 = clamp(Math.round(b.x) - 24, 0, pw - 48), y0 = clamp(Math.round(b.y) - 24, 0, ph - 48);
       try { blob.crop = pctx.getImageData(x0, y0, 48, 48); blob.bgCrop = detector.bgCrop(x0, y0, 48, 48); } catch (e) { /* diagnostics only */ }
     }
+    afterDetect(blob, t, { read: t1 - t0, det: t2 - t1, pk: detector.peak, pz: detector.peakZ || 0, q: detector.frame <= (detector.quietUntil || 0), moved: detector.moved || 0, stale: detector.stale || 0 });
+  }
+  // what happens after a frame was looked at, wherever that was
+  function afterDetect(blob, t, info) {
     tracker.update(blob, t);
     if (blob) lastSeenT = t;
-    if (window.LT_DEBUG) { frameLog.push({ t: Math.round(t), pk: +detector.peak.toFixed(2), pz: +(detector.peakZ || 0).toFixed(2), q: detector.frame <= (detector.quietUntil || 0), b: blob ? blob.tier + Math.round(blob.z || 0) : '', st: tracker.state, zk: zoneKey.length }); if (frameLog.length > 1200) frameLog.shift(); }
-    meterVal = Math.max(detector.peak, detector.peakZ || 0, meterVal * 0.88);
-    if (calib && S.autoTrack && !calib.manual && t - lastTrack > 1200 && t - lastSeenT > 300 && tracker.state === 'ready') { lastTrack = t; trackTarget(kx, ky); }
+    live.peak = info.pk || 0; live.peakZ = info.pz || 0; live.moved = info.moved || 0; live.stale = info.stale || 0;
+    const ms = (info.read || 0) + (info.det || 0);
+    if (window.LT_DEBUG || rec.on) {
+      const e = { t: Math.round(t), pk: +live.peak.toFixed(2), pz: +live.peakZ.toFixed(2), q: !!info.q, b: blob ? blob.tier + Math.round(blob.z || 0) : '', st: tracker.state, lost: fst.lastLost, ms: +ms.toFixed(1), zk: zoneKey.length };
+      if (blob) { e.x = Math.round(blob.x); e.y = Math.round(blob.y); }
+      if (window.LT_DEBUG) { frameLog.push(e); if (frameLog.length > 1200) frameLog.shift(); }
+      if (rec.on && rec.frames.length < 4000) rec.frames.push(e);
+    }
+    meterVal = Math.max(live.peak, live.peakZ, meterVal * 0.88);
+    if (calib && S.autoTrack && !calib.manual && t - lastTrack > 1200 && t - lastSeenT > 300 && tracker.state === 'ready') { lastTrack = t; trackTarget(); }
     const dt = t - perf.lastT; perf.lastT = t; perf.frames++;
     if (dt > 0 && dt < 1000) perf.fps = perf.fps ? perf.fps * 0.9 + (1000 / dt) * 0.1 : 1000 / dt;
-    perf.procMs = perf.procMs * 0.9 + (performance.now() - t0) * 0.1;
+    if (ms > 0) {
+      perf.procMs = perf.procMs * 0.9 + ms * 0.1; perf.readMs = perf.readMs * 0.9 + (info.read || 0) * 0.1; perf.detMs = perf.detMs * 0.9 + (info.det || 0) * 0.1;
+      perf.maxMs = Math.max(perf.maxMs * 0.995, ms);
+    }
+  }
+
+  /* ---------- every camera frame, read off the page ----------
+     The <video> path only sees the frames the page gets round to: a busy moment, or a frame the screen never
+     shows, is skipped, and a one-frame blink with it. Where the browser can hand camera frames to a Web Worker
+     (MediaStreamTrackProcessor: in a worker on Safari 18 / iPadOS 18, on the page in Chrome), the worker reads
+     every frame and runs the detector; the page only gets results. It checks itself first (frames arrive, same
+     size, same picture as the <video>) and falls back to the <video> path when anything is off. */
+  const rd = { mode: 'off', w: null, kind: '', inflight: 0, last: 0, startT: 0, geoKey: '', reason: '', reader: null, track: null, thumbAt: 0, sizeMiss: 0, retries: 0, dropped: 0, any: false };
+  function detWorkerMain() {
+    const det = new LaserDetector();
+    let roi = null, pw = 0, ph = 0, g = null, gk = '', reader = null, track = null, stopped = false, wantThumb = 0, tsPrev = -1, med = 0, n = 0;
+    const dts = [];
+    function thumb(frame) {
+      const fw = frame.displayWidth, fh = frame.displayHeight, tw = 32, th = Math.max(4, Math.round((32 * fh) / fw));
+      const x = new OffscreenCanvas(tw, th).getContext('2d', { willReadFrequently: true });
+      x.drawImage(frame, 0, 0, tw, th);
+      const d = x.getImageData(0, 0, tw, th).data, px = new Array(tw * th);
+      for (let i = 0; i < tw * th; i++) px[i] = (d[i * 4] + 2 * d[i * 4 + 1] + d[i * 4 + 2]) >> 2;
+      return { tw, th, px };
+    }
+    function handle(frame, tAbs) {
+      const fw = frame.displayWidth, fh = frame.displayHeight, ts = frame.timestamp;
+      let lost = 0;
+      if (tsPrev >= 0 && ts > tsPrev) {
+        const dt = (ts - tsPrev) / 1000; // timestamps are in microseconds
+        if (med > 3 && med < 100 && dt > 1.5 * med) lost = Math.round(dt / med) - 1;
+        dts.push(dt); if (dts.length > 61) dts.shift();
+        if ((n++ & 15) === 0) { const s = dts.slice().sort((a, b) => a - b); med = s[s.length >> 1]; }
+      }
+      if (ts > tsPrev) tsPrev = ts;
+      const out = { type: 'f', t: tAbs, fw, fh, lost, med };
+      if (wantThumb) { wantThumb = 0; try { out.thumb = thumb(frame); } catch (e) { out.thumbErr = String(e); } }
+      if (!roi || !g || roi.sw !== fw || roi.sh !== fh) { frame.close(); out.skip = 1; postMessage(out); return; }
+      const t0 = performance.now();
+      try { g.drawImage(frame, roi.x, roi.y, roi.w, roi.h, 0, 0, pw, ph); } catch (e) { frame.close(); out.skip = 2; out.err = String(e); postMessage(out); return; }
+      frame.close();
+      const img = g.getImageData(0, 0, pw, ph);
+      const t1 = performance.now();
+      const b = det.process(img);
+      out.read = t1 - t0; out.det = performance.now() - t1; out.gk = gk;
+      out.pk = det.peak; out.pz = det.peakZ || 0; out.q = det.frame <= (det.quietUntil || 0); out.moved = det.moved || 0; out.stale = det.stale || 0;
+      if (b) {
+        const kx = roi.w / pw, ky = roi.h / ph;
+        const bl = { x: roi.x + b.x * kx, y: roi.y + b.y * ky, energy: b.energy, area: b.area, peak: b.peak, tier: b.tier || 'A', z: b.z || 0 };
+        if (pw >= 48 && ph >= 48) {
+          const x0 = clamp(Math.round(b.x) - 24, 0, pw - 48), y0 = clamp(Math.round(b.y) - 24, 0, ph - 48);
+          try { bl.crop = g.getImageData(x0, y0, 48, 48); bl.bgCrop = det.bgCrop(x0, y0, 48, 48); } catch (e) { /* diagnostics only */ }
+        }
+        out.blob = bl;
+      }
+      postMessage(out);
+    }
+    async function read(tr) {
+      track = tr;
+      let p;
+      try { p = new MediaStreamTrackProcessor({ track: tr, maxBufferSize: 6 }); } catch (e) { postMessage({ type: 'fail', why: 'processor ' + e }); return; }
+      reader = p.readable.getReader();
+      try {
+        for (;;) {
+          const r = await reader.read();
+          if (r.done) break;
+          if (stopped) { r.value.close(); break; }
+          handle(r.value, performance.timeOrigin + performance.now());
+        }
+      } catch (e) { if (!stopped) postMessage({ type: 'fail', why: 'read ' + e }); return; }
+      if (!stopped) postMessage({ type: 'fail', why: 'ended' });
+    }
+    onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'probe') postMessage({ type: 'probe', mstp: typeof MediaStreamTrackProcessor === 'function', oc: typeof OffscreenCanvas === 'function' });
+      else if (m.type === 'track') read(m.track);
+      else if (m.type === 'frame') handle(m.frame, m.t);
+      else if (m.type === 'geo') {
+        gk = m.key;
+        if (!roi || m.roi.x !== roi.x || m.roi.y !== roi.y || m.roi.w !== roi.w || m.roi.h !== roi.h || m.pw !== pw || m.ph !== ph) det.reset();
+        if (m.pw !== pw || m.ph !== ph || !g) { pw = m.pw; ph = m.ph; g = new OffscreenCanvas(pw, ph).getContext('2d', { willReadFrequently: true }); }
+        roi = m.roi;
+        det.setZone(m.mask, m.box);
+      } else if (m.type === 'cfg') det.configure(m.sens, m.color);
+      else if (m.type === 'reset') det.reset();
+      else if (m.type === 'absorb') det.absorb = m.n;
+      else if (m.type === 'thumb') wantThumb = 1;
+      else if (m.type === 'stop') {
+        stopped = true;
+        try { if (reader) reader.cancel(); } catch (err) { /* closed */ }
+        try { if (track) track.stop(); } catch (err) { /* gone */ }
+      }
+    };
+  }
+  const detWorkerSource = () => ['const clamp = ' + clamp.toString(), 'const SENS_THR = ' + JSON.stringify(SENS_THR), LaserDetector.toString(), '(' + detWorkerMain.toString() + ')();'].join('\n');
+  function rdStop(why) {
+    if (rd.w) { const w = rd.w; try { w.postMessage({ type: 'stop' }); } catch (e) { /* gone */ } setTimeout(() => w.terminate(), 300); }
+    if (rd.reader) { try { rd.reader.cancel(); } catch (e) { /* closed */ } }
+    if (rd.track) { try { rd.track.stop(); } catch (e) { /* gone */ } }
+    rd.w = null; rd.reader = null; rd.track = null; rd.kind = ''; rd.mode = 'off'; rd.inflight = 0;
+    if (why) rd.reason = why;
+  }
+  function rdFail(why) {
+    const was = rd.mode;
+    rdStop(why);
+    if (srcKind !== 'camera') return;
+    if (was === 'worker') { fstReset(); detector.reset(); startLoop(); } // back to the <video> path
+    if (why === '멈춤' && ++rd.retries <= 2) setTimeout(() => { if (srcKind === 'camera' && rd.mode === 'off') rdStart(); }, 4000);
+  }
+  async function rdStart() {
+    const was = rd.mode;
+    rdStop('');
+    if (was === 'worker' && srcKind === 'camera') { fstReset(); detector.reset(); startLoop(); } // keep looking while the new worker checks itself
+    if (srcKind !== 'camera' || !track) return;
+    if (S.reader === 'main') { rd.reason = '설정에서 끔'; return; }
+    if (typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function' || typeof VideoFrame !== 'function') { rd.reason = '이 브라우저는 지원 안 함'; return; }
+    let w;
+    try { w = new Worker(URL.createObjectURL(new Blob([detWorkerSource()], { type: 'text/javascript' }))); } catch (e) { rd.reason = '일꾼을 못 만듦'; return; }
+    Object.assign(rd, { w, mode: 'starting', startT: performance.now(), inflight: 0, last: 0, geoKey: '', thumbAt: 0, sizeMiss: 0, dropped: 0, any: false, reason: '' });
+    w.onmessage = rdOnMessage;
+    w.onerror = (e) => { if (rd.w === w) rdFail('오류 ' + (e && e.message ? e.message : '')); };
+    w.postMessage({ type: 'cfg', sens: S.sensitivity, color: S.laserColor });
+    const probe = await new Promise((res) => { rd.probeCb = res; w.postMessage({ type: 'probe' }); setTimeout(() => res(null), 2000); });
+    rd.probeCb = null;
+    if (rd.w !== w) return; // stopped meanwhile
+    if (!probe || !probe.oc) return rdFail(probe ? '일꾼에서 그리기 불가' : '일꾼 응답 없음');
+    if (probe.mstp) {
+      let c = null;
+      try { c = track.clone(); w.postMessage({ type: 'track', track: c }, [c]); rd.kind = 'worker'; }
+      catch (e) { try { if (c) c.stop(); } catch (err) { /* ignore */ } }
+    }
+    if (!rd.kind && typeof MediaStreamTrackProcessor === 'function') {
+      try { const c = track.clone(); rd.track = c; rd.kind = 'page'; rdPageReader(c, w); } catch (e) { rd.kind = ''; }
+    }
+    if (!rd.kind) rdFail('프레임 읽기 지원 안 함');
+  }
+  // Chrome: frames are read on the page (cheap) and handed to the worker, never more than a few at a time
+  async function rdPageReader(tr, w) {
+    let reader;
+    try { reader = new MediaStreamTrackProcessor({ track: tr, maxBufferSize: 6 }).readable.getReader(); } catch (e) { rdFail('읽기 시작 실패'); return; }
+    rd.reader = reader;
+    try {
+      for (;;) {
+        const r = await reader.read();
+        if (r.done) break;
+        const f = r.value;
+        if (rd.w !== w) { f.close(); break; }
+        if (rd.inflight > 3) { f.close(); rd.dropped++; continue; }
+        rd.inflight++;
+        w.postMessage({ type: 'frame', frame: f, t: performance.timeOrigin + performance.now() }, [f]);
+      }
+    } catch (e) { if (rd.w === w) rdFail('읽기 ' + e); }
+  }
+  // the worker's picture must be the one on screen: same size, same way up (not rotated or mirrored)
+  const thumbCv = document.createElement('canvas'), thumbCtx = thumbCv.getContext('2d', { willReadFrequently: true });
+  function rdCompare(th) {
+    const tw = th.tw, hh = th.th, px = th.px;
+    thumbCv.width = tw; thumbCv.height = hh;
+    try { thumbCtx.drawImage(video, 0, 0, tw, hh); } catch (e) { return 'flat'; }
+    const d = thumbCtx.getImageData(0, 0, tw, hh).data, n = tw * hh, a = new Array(n);
+    for (let i = 0; i < n; i++) a[i] = (d[i * 4] + 2 * d[i * 4 + 1] + d[i * 4 + 2]) >> 2;
+    // compare shapes, not levels: the two pictures may come out of different colour conversions
+    const norm = (v) => {
+      let mean = 0; for (const x of v) mean += x; mean /= v.length;
+      let dev = 0; for (const x of v) dev += Math.abs(x - mean); dev /= v.length;
+      return { dev, v: v.map((x) => (x - mean) / (dev || 1)) };
+    };
+    const A = norm(a), B = norm(px);
+    if (A.dev < 4 || B.dev < 4) return 'flat';
+    const sad = (fx, fy) => { let s = 0; for (let y = 0; y < hh; y++) for (let x = 0; x < tw; x++) s += Math.abs(B.v[(fy ? hh - 1 - y : y) * tw + (fx ? tw - 1 - x : x)] - A.v[y * tw + x]); return s / n; };
+    // upside down is the mix-up that can really happen (a tablet turned to the other landscape side); a mirror
+    // image cannot with the back camera, and a centred target often looks the same mirrored anyway
+    const same = sad(false, false), other = sad(true, true);
+    rd.match = [+same.toFixed(2), +other.toFixed(2)];
+    if (same < 0.5 && same * 2 < other) return 'ok';
+    if (other * 2 < same) return 'bad';
+    return 'flat';
+  }
+  function rdOnMessage(e) {
+    const m = e.data;
+    if (m.type === 'probe') { if (rd.probeCb) rd.probeCb(m); return; }
+    if (m.type === 'fail') { if (rd.mode !== 'off') rdFail(m.why || '중단'); return; }
+    if (m.type !== 'f') return;
+    if (rd.inflight > 0) rd.inflight--;
+    rd.last = performance.now(); rd.any = true;
+    if (rd.mode === 'starting') {
+      const [sw, sh] = srcSize();
+      if (!sw) return;
+      if (m.fw !== sw || m.fh !== sh) { if (++rd.sizeMiss > 45) rdFail(`크기 다름 ${m.fw}×${m.fh}`); return; }
+      if (m.thumb) {
+        const v = rdCompare(m.thumb);
+        if (v === 'bad') { rdFail('화면과 그림이 다름'); return; }
+        if (v === 'ok') { rd.mode = 'worker'; rd.geoKey = ''; rd.sizeMiss = 0; rd.thumbAt = performance.now(); loopToken++; fstReset(); return; } // the <video> loop stops here
+      }
+      if (performance.now() - rd.thumbAt > 400) { rd.thumbAt = performance.now(); rd.w.postMessage({ type: 'thumb' }); }
+      return;
+    }
+    if (rd.mode === 'worker') workerFrame(m);
+  }
+  function workerFrame(m) {
+    const t = m.t - performance.timeOrigin, [sw, sh] = srcSize();
+    if (!sw || !sh) return;
+    // the camera is changing size: wait until the page agrees, but not for ever
+    if (m.fw !== sw || m.fh !== sh) { if (++rd.sizeMiss > 90) rdFail(`크기 다름 ${m.fw}×${m.fh}`); return; }
+    rd.sizeMiss = 0;
+    // keep checking now and then that the worker's picture is still the one on screen (the tablet may be turned)
+    if (m.thumb && rdCompare(m.thumb) === 'bad') { rdFail('화면과 그림이 다름'); return; }
+    if (performance.now() - rd.thumbAt > 5000) { rd.thumbAt = performance.now(); rd.w.postMessage({ type: 'thumb' }); }
+    noteFrame(m.lost || 0, t);
+    const { pw, ph, kx, ky } = frameGeometry(sw, sh);
+    updateZone(pw, ph, kx, ky);
+    const key = [roi.x, roi.y, roi.w, roi.h, pw, ph, zoneKey].join('|');
+    if (key !== rd.geoKey) { rd.geoKey = key; rd.w.postMessage({ type: 'geo', key, roi: { x: roi.x, y: roi.y, w: roi.w, h: roi.h, sw, sh }, pw, ph, mask: zoneMask, box: zoneBox }); }
+    if (m.skip) return;
+    afterDetect(m.blob || null, t, m);
   }
 
   /* ================= shots & game ================= */
@@ -1728,7 +2137,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     addDiag('shot', blob, frames, ev);
     if (mode === 'setup') {
       test.count++; if (calib) { if (ev.hit) test.hits++; else test.misses++; }
-      test.frames = frames; test.tier = ev.tier; test.z = ev.z; renderTest();
+      test.frames = frames; test.lostIn = tracker.lostIn; test.tier = ev.tier; test.z = ev.z; renderTest();
       if (ev.hit) Sound.hit(); else if (S.missSound) Sound.miss();
       emit('test-shot', { shot: shotPayload(ev) });
       return;
@@ -1769,17 +2178,18 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     renderLEDs(-1); renderStats();
     if (!silent) emit('reset', {});
   }
+  function setText(id, v) { const el = $(id); if (el.textContent !== v) el.textContent = v; }
   function tickGame(t) {
     if (game.phase === 'running' && S.timeLimit > 0 && t - game.t0 >= S.timeLimit * 1000) finish('timeout', game.t0 + S.timeLimit * 1000);
     const ms = game.phase === 'running' ? t - game.t0 : game.phase === 'ready' ? 0 : game.tEnd - game.t0;
-    $('statTime').textContent = (Math.max(0, ms) / 1000).toFixed(1);
-    const warn = game.phase === 'running' && S.timeLimit > 0 && S.timeLimit * 1000 - ms < 10000;
-    if (warn) $('statTimeBox').setAttribute('data-warn', ''); else $('statTimeBox').removeAttribute('data-warn');
+    setText('statTime', (Math.max(0, ms) / 1000).toFixed(1));
+    const warn = game.phase === 'running' && S.timeLimit > 0 && S.timeLimit * 1000 - ms < 10000, box = $('statTimeBox');
+    if (warn !== box.hasAttribute('data-warn')) { if (warn) box.setAttribute('data-warn', ''); else box.removeAttribute('data-warn'); }
     if (!$('result').hidden) {
       const left = game.resetAt ? Math.max(0, Math.ceil((game.resetAt - t) / 1000)) : 0;
-      $('resultHint').textContent = game.resetAt ? `${left}초 뒤 자동으로 다시 시작 · 화면을 누르면 바로 시작` : '화면을 누르면 다시 시작';
+      setText('resultHint', game.resetAt ? `${left}초 뒤 자동으로 다시 시작 · 화면을 누르면 바로 시작` : '화면을 누르면 다시 시작');
     }
-    $('prompt').textContent = game.phase === 'ready' ? (srcKind && !calib && srcKind !== 'demo' ? '설정에서 과녁을 먼저 맞춰 주세요' : '첫 발을 쏘면 시간이 시작돼요') : game.phase === 'running' ? `${S.hitsNeeded - game.hits}발 남음` : '';
+    setText('prompt', game.phase === 'ready' ? (srcKind && !calib && srcKind !== 'demo' ? '설정에서 과녁을 먼저 맞춰 주세요' : '첫 발을 쏘면 시간이 시작돼요') : game.phase === 'running' ? `${S.hitsNeeded - game.hits}발 남음` : '');
   }
 
   /* ================= rendering ================= */
@@ -1835,7 +2245,11 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     if (!srcKind) setChip('chipSrc', 'idle', '입력 없음');
     else if (srcKind === 'demo') setChip('chipSrc', 'demo', '데모');
     else if (srcKind === 'file') setChip('chipSrc', live ? 'ok' : 'warn', '영상 파일');
-    else setChip('chipSrc', live && track && track.readyState === 'live' ? 'ok' : 'bad', live ? `카메라 ${Math.round(perf.fps)}fps` : '카메라 멈춤');
+    else {
+      const fx = frameStats(), lossy = fx.cam > 0 && fx.lostPct >= 5;
+      setChip('chipSrc', live && track && track.readyState === 'live' ? (lossy ? 'warn' : 'ok') : 'bad',
+        live ? `카메라 ${Math.round(fx.proc || perf.fps)}fps${lossy ? ` · 놓침 ${Math.round(fx.lostPct)}%` : ''}` : '카메라 멈춤');
+    }
     if (!calib) setChip('chipTarget', srcKind ? 'bad' : 'idle', '과녁 없음');
     else if (trackFails >= 3) setChip('chipTarget', 'warn', '과녁 확인');
     else setChip('chipTarget', 'ok', '과녁');
@@ -1849,37 +2263,127 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   function renderTest() {
     $('testCount').textContent = test.count; $('testHits').textContent = test.hits; $('testMiss').textContent = test.misses;
     $('testDur').textContent = test.count ? `${test.frames}프레임` : '-';
-    $('testSig').textContent = !test.count ? '마지막 발의 신호 세기가 여기에 나와요.' : test.tier === 'B'
-      ? `마지막 발: 약한 빛으로 판정 · 잡음의 ${test.z.toFixed(1)}배 (6배 아래면 그늘·초점 조절을 권해요)`
-      : '마지막 발: 또렷한 빛으로 판정';
+    const cam = frameStats().cam, n = test.frames + (test.lostIn || 0);
+    const dur = test.count && cam > 0 ? ` · 빛이 ${n}장에 찍힘 ≈ ${n * 1000 / cam < 40 ? '한 장 이하로 짧음' : `${(n / cam).toFixed(2)}초`}` : '';
+    $('testSig').textContent = !test.count ? '마지막 발의 신호 세기와 빛이 몇 장에 찍혔는지가 여기에 나와요.' : test.tier === 'B'
+      ? `마지막 발: 약한 빛으로 판정 · 잡음의 ${test.z.toFixed(1)}배 (6배 아래면 그늘·초점 조절을 권해요)${dur}`
+      : `마지막 발: 또렷한 빛으로 판정${dur}`;
   }
   function renderMeter() {
     const v = clamp(meterVal / 2, 0, 1), f = $('meterFill');
     f.style.width = (v * 100).toFixed(1) + '%'; f.classList.toggle('over', meterVal >= 1);
   }
+  function camInfo() {
+    if (!track) return null;
+    let settings = {}, caps = {};
+    try { settings = track.getSettings ? track.getSettings() : {}; } catch (e) { /* not available */ }
+    try { caps = track.getCapabilities ? track.getCapabilities() : {}; } catch (e) { /* not available */ }
+    return { settings, caps };
+  }
+  function capsText() {
+    const ci = camInfo();
+    if (!ci) return '';
+    const c = ci.caps || {}, st = ci.settings || {};
+    const rng = (k) => (c[k] && typeof c[k].min === 'number' ? `${+c[k].min.toFixed(2)}~${+c[k].max.toFixed(2)}` : null);
+    const list = (k) => (Array.isArray(c[k]) && c[k].length ? c[k].join('/') : null);
+    return '카메라가 허락하는 것: ' + [
+      `초당 ${rng('frameRate') || '?'}장`, `확대 ${rng('zoom') || '없음'}`,
+      `노출 시간 ${rng('exposureTime') || '조절 불가'}${st.exposureTime != null ? ` (지금 ${+(+st.exposureTime).toFixed(2)})` : ''}`,
+      `밝기 보정 ${rng('exposureCompensation') || '조절 불가'}`, `노출 방식 ${list('exposureMode') || '-'}`, `색온도 ${list('whiteBalanceMode') || '-'}`, `초점 ${list('focusMode') || '-'}`,
+    ].join(' · ');
+  }
+  const readerLabel = () => (rd.mode === 'worker' ? '모든 프레임 읽기' : rd.mode === 'starting' ? '모든 프레임 읽기 준비 중' : '화면에 보이는 프레임만');
+  const laserModeLabel = () => ({ blink: '짧게 깜빡', blink2: '0.1초 이상 깜빡', steady: '계속 켜짐' })[S.laserMode] || S.laserMode;
+  // text squeezed sideways rather than cut off when the panel is narrow
+  function fillFit(g, text, x, y, maxW) {
+    const w = g.measureText(text).width;
+    if (w <= maxW || maxW <= 0) { g.fillText(text, x, y); return; }
+    g.save(); g.translate(x, y); g.scale(maxW / w, 1); g.fillText(text, 0, 0); g.restore();
+  }
+  function imgCanvas(img) { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').putImageData(img, 0, 0); return c; }
+  function wrapText(g, text, x, y, maxW, lh) {
+    let line = '';
+    for (const ch of text) {
+      const t = line + ch;
+      if (line && g.measureText(t).width > maxW) { g.fillText(line, x, y); y += lh; line = ch === ' ' ? '' : ch; } else line = t;
+    }
+    if (line) g.fillText(line, x, y);
+  }
+  // where each recent detection landed on the target, numbered like the list below it
+  function drawDiagMap(g, W, H, font) {
+    const R = (H - 12) / 2, unit = R / 2.62, cx = R + 4, cy = H / 2;
+    g.save();
+    g.fillStyle = tokens.paper; g.beginPath(); g.arc(cx, cy, 2.5 * unit, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 1;
+    for (let r = 1.25; r <= 2.51; r += 0.25) { g.beginPath(); g.arc(cx, cy, r * unit, 0, Math.PI * 2); g.stroke(); }
+    g.fillStyle = '#111'; g.beginPath(); g.arc(cx, cy, unit, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.22)';
+    for (const r of [0.25, 0.5, 0.75]) { g.beginPath(); g.arc(cx, cy, r * unit, 0, Math.PI * 2); g.stroke(); }
+    const hr = hitRho();
+    if (Math.abs(hr - 1) > 1e-3) { g.setLineDash([4, 3]); g.strokeStyle = tokens.hit; g.lineWidth = 1.5; g.beginPath(); g.arc(cx, cy, hr * unit, 0, Math.PI * 2); g.stroke(); g.setLineDash([]); }
+    g.font = `700 11px ${font}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let k = diag.length - 1; k >= 0; k--) { // newest on top
+      const e = diag[k];
+      if (e.ux == null) continue;
+      let x = e.ux, y = e.uy;
+      const r = Math.hypot(x, y);
+      if (r > 2.55) { x *= 2.55 / r; y *= 2.55 / r; } // off the target: pinned to its edge
+      const px = cx + x * unit, py = cy + y * unit;
+      g.fillStyle = e.kind !== 'shot' ? tokens.amber : e.hit ? tokens.hit : tokens.miss;
+      g.strokeStyle = '#000'; g.lineWidth = 2;
+      g.beginPath(); g.arc(px, py, 8, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = '#000'; g.fillText(String(k + 1), px, py + 0.5);
+    }
+    g.textAlign = 'left'; g.textBaseline = 'top';
+    const lx = cx + 2.62 * unit + 14;
+    if (lx < W - 80) {
+      g.font = `500 12px ${font}`;
+      [[tokens.hit, '명중'], [tokens.miss, '빗나감'], [tokens.amber, '무시함']].forEach(([col, label], i) => {
+        g.fillStyle = col; g.beginPath(); g.arc(lx + 6, 10 + i * 20 + 7, 6, 0, Math.PI * 2); g.fill();
+        g.fillStyle = tokens['ink-2']; g.fillText(label, lx + 18, 10 + i * 20);
+      });
+      g.fillStyle = tokens['ink-3'];
+      wrapText(g, calib ? '번호 = 아래 목록 (1이 가장 최근). 쏜 곳과 다른 데 찍혔으면 그 번호를 알려 주세요.' : '과녁을 찾으면 감지된 자리가 여기에 표시돼요.', lx, 76, W - lx - 4, 17);
+    }
+    g.restore();
+  }
   function renderDiag() {
-    const [sw, sh] = srcSize(), fr = track && track.getSettings ? track.getSettings().frameRate : null;
-    $('diagInfo').textContent = `카메라 ${sw}×${sh} · 설정 ${fr ? Math.round(fr) : '-'}fps · 실제 ${perf.fps.toFixed(0)}fps · 종이 밝기 ${calib && calib.paper != null ? calib.paper : '-'} · 감도 ${S.sensitivity} · 정면 ${S.frontal ? '켬' : '끔'} · 움직임으로 거른 것 ${detector.moved || 0} · 오래된 빛으로 거른 것 ${detector.stale || 0} · v ${window.LT_VERSION || 'preview'}`;
-    const cv = $('diagCanvas'), wcss = Math.max(240, cv.parentElement.clientWidth), rowH = 104, dpr = Math.min(2, window.devicePixelRatio || 1);
-    const rows = Math.max(1, diag.length);
-    cv.style.width = wcss + 'px'; cv.style.height = rows * rowH + 'px';
-    cv.width = Math.round(wcss * dpr); cv.height = Math.round(rows * rowH * dpr);
-    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, wcss, rows * rowH);
-    g.font = `500 13px ${getComputedStyle(document.body).fontFamily}`; g.textBaseline = 'top';
-    if (!diag.length) { g.fillStyle = tokens['ink-3']; g.fillText('아직 감지된 것이 없어요. 쏘거나 기다려 보세요.', 0, 8); return; }
-    const tmp = document.createElement('canvas'); tmp.width = 48; tmp.height = 48; const tg = tmp.getContext('2d');
+    const [sw, sh] = srcSize(), fr = track && track.getSettings ? track.getSettings().frameRate : null, fx = frameStats();
+    const L = [
+      `카메라 ${sw}×${sh} · 설정 ${fr ? Math.round(fr) : '-'}fps · 들어온 프레임 ${fx.cam ? fx.cam.toFixed(0) : '-'}장/초 · 처리 ${fx.proc ? fx.proc.toFixed(0) : perf.fps.toFixed(0)}장/초 · 놓침 ${fx.lostPct.toFixed(0)}% (지금까지 ${fst.lost}장)`,
+      `읽기: ${readerLabel()}${rd.reason ? ' (' + rd.reason + ')' : ''} · 한 장에 ${perf.procMs.toFixed(1)}ms (읽기 ${perf.readMs.toFixed(1)} + 계산 ${perf.detMs.toFixed(1)}, 최대 ${perf.maxMs.toFixed(0)}) · 처리 크기 ${perf.pw}×${perf.ph}`,
+      `종이 밝기 ${calib && calib.paper != null ? calib.paper : '-'} · 감도 ${S.sensitivity} · 레이저 ${laserModeLabel()} · 정면 ${S.frontal ? '켬' : '끔'} · 움직임으로 거름 ${Math.max(0, live.moved - diagBase.moved)} · 오래된 빛으로 거름 ${Math.max(0, live.stale - diagBase.stale)} · v ${window.LT_VERSION || 'preview'}`,
+    ];
+    const ct = capsText();
+    if (ct) L.push(ct);
+    $('diagInfo').textContent = L.join('\n');
+    const cv = $('diagCanvas'), wcss = Math.max(240, cv.parentElement.clientWidth), rowH = 104, mapH = 176, dpr = Math.min(2, window.devicePixelRatio || 1);
+    const rows = Math.max(1, diag.length), H = mapH + rows * rowH;
+    cv.style.width = wcss + 'px'; cv.style.height = H + 'px';
+    cv.width = Math.round(wcss * dpr); cv.height = Math.round(H * dpr);
+    const g = cv.getContext('2d'), font = getComputedStyle(document.body).fontFamily;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, wcss, H);
+    drawDiagMap(g, wcss, mapH - 8, font);
+    g.font = `500 13px ${font}`; g.textBaseline = 'top';
+    if (!diag.length) { g.fillStyle = tokens['ink-3']; g.fillText('아직 감지된 것이 없어요. 쏘거나 기다려 보세요.', 0, mapH + 8); return; }
     diag.forEach((e, k) => {
-      const y = k * rowH;
+      const y = mapH + k * rowH;
       g.imageSmoothingEnabled = false;
-      if (e.crop) { tg.putImageData(e.crop, 0, 0); g.drawImage(tmp, 0, y, 88, 88); }
-      if (e.bgCrop) { tg.putImageData(e.bgCrop, 0, 0); g.drawImage(tmp, 94, y, 88, 88); }
+      // every picture gets its own little canvas: Safari paints a reused canvas only once, with its last content
+      if (e.crop && !e.cropCv) e.cropCv = imgCanvas(e.crop);
+      if (e.bgCrop && !e.bgCv) e.bgCv = imgCanvas(e.bgCrop);
+      if (e.cropCv) g.drawImage(e.cropCv, 0, y, 88, 88);
+      if (e.bgCv) g.drawImage(e.bgCv, 94, y, 88, 88);
       g.fillStyle = tokens['ink-3']; g.fillText('그때', 2, y + 89); g.fillText('바로 전', 96, y + 89);
-      const what = e.kind === 'ignored' ? '무시함: 0.5초 넘게 켜져 있었음' : !e.calibrated ? '감지(과녁 없음)' : e.hit ? `명중 ${e.score}점` : `빗나감 ${e.score ? e.score + '점' : '과녁 밖'}`;
+      const what = e.kind === 'ignored' ? '무시함: 0.5초 넘게 켜져 있었음' : e.kind === 'short' ? '무시함: 한 장에만 찍힘 (0.1초 모드)' : !e.calibrated ? '감지(과녁 없음)' : e.hit ? `명중 ${e.score}점` : `빗나감 ${e.score ? e.score + '점' : '과녁 밖'}`;
       const how = e.tier === 'B' ? `약한 빛 · 잡음의 ${e.z.toFixed(1)}배` : `또렷한 빛 · 기준의 ${e.peak > 0 ? (e.peak / detector.thr).toFixed(1) : '-'}배`;
-      g.fillStyle = e.kind === 'ignored' ? tokens.amber : e.hit ? tokens.hit : tokens.ink;
-      g.fillText(`${fmtClock(e.at)} · ${what}`, 192, y + 6);
+      const lostAny = e.lostB > 0 || e.lostIn > 0 || e.lostA > 0, tw = wcss - 194;
+      g.fillStyle = e.kind !== 'shot' ? tokens.amber : e.hit ? tokens.hit : tokens.ink;
+      fillFit(g, `${k + 1}. ${fmtClock(e.at)} · ${what}`, 192, y + 6, tw);
       g.fillStyle = tokens['ink-2'];
-      g.fillText(how, 192, y + 26); g.fillText(`${e.frames}프레임 · ${e.mode === 'setup' ? '설정 모드' : '표적 화면'}`, 192, y + 46);
+      fillFit(g, how, 192, y + 26, tw);
+      fillFit(g, `${e.frames}프레임 · ${lostAny ? '앞뒤 프레임을 놓침' : '앞뒤 프레임도 봄'}`, 192, y + 46, tw);
+      fillFit(g, `${e.mode === 'setup' ? '설정 모드' : '표적 화면'} · ${e.rd === 'worker' ? '모든 프레임' : '화면 프레임만'}`, 192, y + 66, tw);
     });
   }
   function fmtClock(ts) { const d = new Date(ts); return [d.getHours(), d.getMinutes(), d.getSeconds()].map((v) => String(v).padStart(2, '0')).join(':'); }
@@ -1906,18 +2410,28 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     if (S.frontal) delete h.b; // a circle needs only its centre and one point on the edge
     return h;
   }
+  let ovKey = '';
   function drawOverlay(t) {
     const r = stage.getBoundingClientRect();
     if (r.width < 8) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
+    const [sw] = srcSize();
+    if (sw) computeView();
+    // Repaint only when something on it changed: clearing and redrawing a full-screen canvas 60 times a second
+    // takes time the camera loop needs on a tablet.
+    const full = mode === 'setup', life = 20000, shots = full ? recent : game.list, c = calib;
+    let fade = 0;
+    if (full) for (const s of shots) { const age = t - s.t; if (age > life - 1600 && age < life + 400) { fade = Math.floor(t / 66); break; } }
+    const key = [W, H, sw, view.key, mode, editMode, S.frontal, c ? [c.cx, c.cy, c.a, c.b, c.theta].map((v) => v.toFixed(2)).join(',') : '-',
+      roi ? [roi.x, roi.y, roi.w, roi.h].join(',') : '-', hitRho().toFixed(4), shots.length, shots.length ? shots[shots.length - 1].t : 0, fade].join('|');
+    if (key === ovKey) return;
+    ovKey = key;
     if (overlay.width !== W || overlay.height !== H) { overlay.width = W; overlay.height = H; }
     const g = overlay.getContext('2d');
     g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
-    const [sw] = srcSize();
     if (!sw) return;
-    computeView();
-    const u = 1 / view.s, full = mode === 'setup';
+    const u = 1 / view.s;
     g.setTransform(view.s * dpr, 0, 0, view.s * dpr, view.ox * dpr, view.oy * dpr);
     if (full && roi && calib) { g.setLineDash([6 * u, 6 * u]); g.lineWidth = u; g.strokeStyle = rgba(tokens.ink, 0.35); g.strokeRect(roi.x, roi.y, roi.w, roi.h); g.setLineDash([]); }
     if (calib) {
@@ -1944,7 +2458,6 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         }
       }
     }
-    const life = 20000, shots = full ? recent : game.list;
     for (const s of shots) {
       const age = t - s.t;
       if (full && (age > life || age < 0)) continue;
@@ -2078,7 +2591,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   }
   function syncControls() {
     $('rngSens').value = S.sensitivity; $('outSens').textContent = S.sensitivity;
-    $('selColor').value = S.laserColor; $('chkTrack').checked = !!S.autoTrack; $('chkFrontal').checked = !!S.frontal; $('selLaserMode').value = S.laserMode;
+    $('selColor').value = S.laserColor; $('chkTrack').checked = !!S.autoTrack; $('chkFrontal').checked = !!S.frontal; $('selLaserMode').value = S.laserMode; $('selReader').value = S.reader;
     $('numLane').value = S.lane; $('selMinScore').value = String(S.minScore);
     $('rngTol').value = S.tolerance; $('outTol').textContent = (S.tolerance > 0 ? '+' : '') + S.tolerance + '%';
     $('selLimit').value = String(S.timeLimit); if ($('selLimit').value !== String(S.timeLimit)) addOption($('selLimit'), S.timeLimit, S.timeLimit + '초');
@@ -2099,7 +2612,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     }
     S.hitsNeeded = clamp(Math.round(S.hitsNeeded), 1, 10); S.sensitivity = clamp(Math.round(S.sensitivity), 1, 10);
     S.minScore = clamp(Math.round(S.minScore), 1, 10); S.lane = clamp(Math.round(S.lane), 1, 99);
-    saveSettings(); detector.configure(S.sensitivity, S.laserColor);
+    saveSettings(); detCfg();
     if ($('leds').children.length !== S.hitsNeeded) { buildLEDs(); gameReset(true); }
     renderStats(); syncControls(); renderShooter(); fitStage();
   }
@@ -2123,7 +2636,15 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     $('btnZoomIn').addEventListener('click', () => zoomStep(1));
     $('btnZoomOut').addEventListener('click', () => zoomStep(-1));
     $('btnZoomFit').addEventListener('click', () => zoomFit(false));
-    $('btnDiagClear').addEventListener('click', () => { diag.length = 0; detector.moved = 0; detector.stale = 0; renderDiag(); });
+    $('btnDiagClear').addEventListener('click', () => { diag.length = 0; diagBase.moved = live.moved; diagBase.stale = live.stale; renderDiag(); });
+    $('btnRec').addEventListener('click', () => (rec.on ? recStop() : recStart()));
+    $('btnRecSave').addEventListener('click', recShare);
+    $('selReader').addEventListener('change', (e) => {
+      set('reader', e.target.value);
+      if (srcKind !== 'camera') return;
+      if (S.reader === 'main') { const was = rd.mode; rdStop('설정에서 끔'); if (was === 'worker') { fstReset(); detector.reset(); startLoop(); } }
+      else if (rd.mode === 'off') { rd.retries = 0; rdStart(); }
+    });
     $('selLaserMode').addEventListener('change', (e) => set('laserMode', e.target.value));
     $('txtRoster').addEventListener('change', (e) => { S.shooterIdx = 0; set('roster', e.target.value); });
     $('btnPrevShooter').addEventListener('click', () => moveShooter(-1));
@@ -2245,7 +2766,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   }
   window.addEventListener('message', (e) => handleCommand(e.data));
   window.LaserTarget = {
-    version: '0.5.0',
+    version: '0.6.0',
     setShooter(name) { shooterOverride = name ? String(name).slice(0, 40) : ''; renderShooter(); },
     on(type, fn) { (listeners[type] = listeners[type] || []).push(fn); return () => window.LaserTarget.off(type, fn); },
     off(type, fn) { const a = listeners[type]; if (a) { const i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); } },
@@ -2264,6 +2785,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       detectTarget, LaserDetector, autoCalibrate, openSetup, closeSetup, useDemo, useCamera, setCalib,
       get calib() { return calib; }, get roi() { return roi; }, get perf() { return perf; }, get recent() { return recent; }, get allShots() { return allShots; }, get diag() { return diag; }, get frameLog() { return frameLog; },
       get game() { return game; }, get trackFails() { return trackFails; }, get trackRuns() { return trackRuns; }, get test() { return test; }, get detector() { return detector; }, get mode() { return mode; },
+      get rd() { return rd; }, get fst() { return fst; }, frameStats, get rec() { return rec; }, recStart, recStop, rdStart,
     },
   };
 
@@ -2305,9 +2827,19 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         $('soundHint').hidden = !(S.sound && !attract && srcKind && (!Sound.ctx || Sound.ctx.state !== 'running'));
         if (mode === 'setup') {
           const [sw, sh] = srcSize();
-          const fr = track && track.getSettings ? track.getSettings().frameRate : null;
-          $('srcInfo').textContent = srcKind ? `${sw}×${sh}${fr ? ` · 카메라 ${Math.round(fr)}fps` : ''} · 처리 ${perf.fps.toFixed(0)}fps · ${perf.procMs.toFixed(1)}ms/장` : '입력 없음';
+          const fr = track && track.getSettings ? track.getSettings().frameRate : null, fx = frameStats();
+          $('srcInfo').textContent = srcKind ? `${sw}×${sh}${fr ? ` · 카메라 ${Math.round(fr)}fps` : ''} · 처리 ${perf.fps.toFixed(0)}fps · ${perf.procMs.toFixed(1)}ms/장 · ${readerLabel()}` : '입력 없음';
+          const fi = $('frameInfo');
+          if (srcKind === 'camera' && fx.cam > 0) {
+            fi.textContent = `프레임: 카메라 ${fx.cam.toFixed(0)}장/초 · 앱이 본 것 ${fx.proc.toFixed(0)}장/초 · 놓침 ${fx.lostPct.toFixed(0)}% · ${readerLabel()}` +
+              (fx.lostPct >= 5 ? ' — 놓친 프레임에 들어간 짧은 깜빡임은 못 잡아요' : '');
+            fi.dataset.warn = fx.lostPct >= 5 ? '1' : '';
+          } else { fi.textContent = ''; fi.dataset.warn = ''; }
         }
+        if (rec.on) renderRec();
+        // the frame worker went quiet while the camera is on screen: back to the <video> path
+        if (rd.mode === 'worker' && srcKind === 'camera' && document.visibilityState === 'visible' && performance.now() - rd.last > 2500) rdFail('멈춤');
+        if (rd.mode === 'starting' && !rd.any && performance.now() - rd.startT > 8000) rdFail('프레임이 안 옴');
       }
     } catch (e) { console.error(e); }
     requestAnimationFrame(uiLoop);
@@ -2325,7 +2857,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     if (window.visualViewport) window.visualViewport.addEventListener('resize', refit);
     if (window.ResizeObserver) { const ro = new ResizeObserver(() => requestAnimationFrame(refit)); ro.observe($('stageSlot')); ro.observe($('ledsWrap')); }
     renderZoom();
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); resumeVideo(); checkUpdate(true); } });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { rd.last = performance.now(); keepAwake(); resumeVideo(); checkUpdate(true); } });
+    const up = uploadURL(); if (up) $('lnkUpload').href = up;
     $('updateBar').addEventListener('click', () => applyUpdate(true));
     checkUpdate(true); setInterval(() => checkUpdate(false), 5 * 60 * 1000);
     document.addEventListener('pointerdown', () => Sound.unlock(), { capture: true });
