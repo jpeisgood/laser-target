@@ -16,7 +16,7 @@ DIST = ROOT / "docs"  # GitHub Pages serves this folder (Settings > Pages > main
 
 def build() -> pathlib.Path:
     src = SRC.read_text(encoding="utf-8")
-    cut = src.index('<div id="app">')
+    cut = src.index('<div id="app"')
     head, body = src[:cut].strip(), src[cut:].strip()
     doc = f"""<!doctype html>
 <html lang="ko">

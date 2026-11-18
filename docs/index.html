@@ -16,10 +16,12 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
 :root {
-  /* Layout: a range display. Five LED sockets ride across the middle of the screen, the big readouts sit under
-     them, and the camera inset + shot map sit at the foot. Setup is a full-screen sheet: live camera on the left,
-     numbered steps on the right (one column on phones). One deliberate dark look: it is read from 10 m away. */
+  /* Layout: landscape tablet = camera view of the target on the left 2/3, a side column on the right 1/3 with
+     the shooter, the five LED sockets and the shooting clock. "설정 모드" swaps the side column for the settings
+     steps while the camera stays on the left. Portrait/phone: view on top, side column below.
+     One deliberate dark look: the screen is read from 10 m away. */
   --bg: #0e1412;
+  --view-bg: #070a09;
   --surface: #151d1a;
   --surface-2: #1e2824;
   --line: #2c3833;
@@ -46,7 +48,6 @@
   --font-display: "Barlow Condensed", "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
-  --led-size: min(15.4vw, 30vh, 210px);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -57,7 +58,7 @@ body {
   overflow: hidden; -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased;
 }
 [hidden] { display: none !important; }
-button, select, input { font: inherit; color: inherit; }
+button, select, input, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 
 /* ---------- buttons ---------- */
@@ -74,45 +75,77 @@ button, select, input { font: inherit; color: inherit; }
 .btn-quiet { background: transparent; }
 .btn[aria-pressed="true"] { border-color: var(--amber); color: var(--amber); }
 
-/* ---------- scoreboard ---------- */
-.board {
-  position: relative; height: 100%;
-  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto;
-  gap: clamp(8px, 2.2vh, 22px);
-  padding-block: clamp(10px, 2vh, 20px);
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  background: radial-gradient(110% 75% at 50% 40%, var(--surface) 0%, var(--bg) 72%);
-  overflow: hidden;
+/* ---------- frame: view (2/3) + side (1/3) ---------- */
+.app { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); }
+.view {
+  position: relative; min-width: 0; min-height: 0; background: var(--view-bg);
+  display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 8px;
+  padding-block: 12px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: 12px;
 }
-.topbar { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.stage-slot { min-width: 0; min-height: 0; display: grid; place-items: center; }
+.stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; touch-action: none; }
+.stage video, .stage canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+.stage video { object-fit: fill; }
+.stage #overlay { inset: 0; width: 100%; height: 100%; }
+.stage-msg {
+  position: absolute; left: 10px; right: 10px; bottom: 10px; margin: 0; padding: 8px 12px; border-radius: 8px;
+  background: var(--shade); color: var(--ink); font-size: 14px; pointer-events: none;
+}
+.view-note {
+  position: absolute; left: 50%; top: 18px; transform: translateX(-50%); z-index: 2;
+  display: flex; align-items: center; gap: 12px; max-width: calc(100% - 32px);
+  padding: 10px 12px 10px 16px; border-radius: 12px; background: var(--shade); border: 1px solid var(--line);
+  font-size: 15px;
+}
+.view-note .btn { min-height: 38px; padding: 6px 12px; }
+.view-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; color: var(--ink-2); font-size: 13px; }
+.app[data-mode="board"] .view-bar { display: none; }
+.view-bar span { display: inline-flex; align-items: center; gap: 7px; }
+.view-bar i { display: inline-block; width: 16px; height: 0; border-top: 3px solid var(--amber); border-radius: 2px; }
+.view-bar i.dash { border-top: 2px dashed var(--hit); }
+.view-bar i.dot { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--hit); }
+.view-bar i.x { width: 10px; height: 10px; border: 0; background: linear-gradient(45deg, transparent 42%, var(--miss) 42% 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, var(--miss) 42% 58%, transparent 58%); }
+
+.side { min-width: 0; min-height: 0; display: grid; background: var(--surface); border-left: 1px solid var(--line); }
+
+/* ---------- side: scoreboard ---------- */
+.board {
+  min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 14px;
+  padding-block: 16px; padding-left: 18px; padding-right: max(18px, env(safe-area-inset-right, 0px));
+}
+.side-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .plate {
   display: inline-flex; align-items: baseline; gap: 6px; flex: none;
-  padding: 1px 12px 2px; border-radius: 6px;
-  background: var(--ply); color: var(--ply-ink);
+  padding: 1px 12px 2px; border-radius: 6px; background: var(--ply); color: var(--ply-ink);
   font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: 0.04em;
 }
 .plate b { font-size: 26px; line-height: 1.1; }
-.brand {
-  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-family: var(--font-display); font-weight: 600; font-size: 19px; letter-spacing: 0.1em; color: var(--ink-2);
-}
-.topbar .spacer { flex: 1; }
-.chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-.chip {
-  display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px; border-radius: 999px;
-  background: var(--surface-2); color: var(--ink-2); font-size: 13px; white-space: nowrap;
-}
+.chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+.chip { display: inline-flex; align-items: center; gap: 7px; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 13px; white-space: nowrap; }
 .chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex: none; }
 .chip[data-state="ok"] i { background: var(--hit); box-shadow: 0 0 8px var(--hit-glow); }
 .chip[data-state="warn"] i { background: var(--amber); }
 .chip[data-state="bad"] i { background: var(--miss); }
 .chip[data-state="demo"] { background: var(--ply); color: var(--ply-ink); }
 .chip[data-state="demo"] i { background: var(--ply-ink); }
-.topbar .btn { min-height: 40px; padding: 6px 14px; }
+.k { font-size: 13px; color: var(--ink-2); letter-spacing: 0.14em; font-weight: 500; }
 
-.rail { display: grid; place-content: center; justify-items: center; gap: calc(var(--led-size) * 0.32); min-height: 0; }
-.leds { display: flex; align-items: center; justify-content: center; gap: calc(var(--led-size) * 0.18); }
+.shooter { display: grid; justify-items: center; gap: 2px; min-width: 0; }
+.shooter-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 6px; width: 100%; }
+.shooter-name {
+  font-family: var(--font-display); font-weight: 700; font-size: clamp(28px, 3.4vw, 46px); line-height: 1.1;
+  text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.shooter-name.empty { color: var(--ink-3); font-size: clamp(20px, 2.2vw, 28px); }
+.nav-btn {
+  width: 44px; height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2);
+  font-size: 24px; line-height: 1; cursor: pointer;
+}
+.nav-btn:disabled { opacity: 0.3; cursor: default; }
+.shooter .sub { color: var(--ink-2); font-size: 13px; text-align: center; }
+
+.leds-wrap { min-height: 0; display: flex; align-items: center; justify-content: center; }
+.leds { --led-size: 90px; display: flex; flex-wrap: wrap; justify-content: center; gap: calc(var(--led-size) * 0.22); }
 .led {
   position: relative; width: var(--led-size); height: var(--led-size); border-radius: 50%;
   background: radial-gradient(circle at 50% 38%, var(--surface-2) 0%, var(--led-off) 55%, var(--led-rim) 100%);
@@ -133,118 +166,50 @@ button, select, input { font: inherit; color: inherit; }
 .led.pop { animation: pop 0.3s ease-out; }
 @keyframes pop { 0% { transform: scale(0.84); } 60% { transform: scale(1.07); } 100% { transform: scale(1); } }
 .led-num {
-  position: absolute; left: 0; right: 0; top: calc(100% + var(--led-size) * 0.1);
-  text-align: center; font-family: var(--font-mono); font-weight: 500;
-  font-size: clamp(11px, calc(var(--led-size) * 0.1), 17px); color: var(--ink-3);
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: var(--font-display); font-weight: 700; font-size: calc(var(--led-size) * 0.3); color: var(--ink-3);
 }
-.prompt { margin: 0; color: var(--ink-2); font-size: clamp(14px, 1.8vw, 20px); text-align: center; min-height: 1.5em; }
+.led.on .led-num { color: var(--hit-deep); }
 
-.readouts { display: flex; justify-content: center; align-items: flex-end; flex-wrap: wrap; gap: 8px clamp(20px, 7vw, 110px); }
-.readout { display: grid; justify-items: center; gap: 2px; }
-.readout .k { font-size: clamp(12px, 1.5vw, 16px); color: var(--ink-2); letter-spacing: 0.14em; font-weight: 500; }
-.readout .v {
-  font-family: var(--font-display); font-weight: 700; line-height: 0.95;
-  font-size: clamp(40px, 7.4vw, 110px); font-variant-numeric: tabular-nums;
-}
-.readout .v small { font-size: 0.48em; font-weight: 600; color: var(--ink-3); margin-left: 0.08em; }
-.readout .v[data-warn] { color: var(--amber); }
+.clock { display: grid; justify-items: center; gap: 2px; }
+.clock .v { font-family: var(--font-display); font-weight: 700; line-height: 0.95; font-size: clamp(52px, 6.4vw, 92px); font-variant-numeric: tabular-nums; }
+.clock .v small { font-size: 0.45em; font-weight: 600; color: var(--ink-3); margin-left: 0.08em; }
+.clock .v[data-warn] { color: var(--amber); }
+.clock .sub { color: var(--ink-2); font-size: 15px; font-variant-numeric: tabular-nums; }
+.prompt { margin: 0; color: var(--ink-2); font-size: 15px; text-align: center; min-height: 1.5em; }
+.sound-hint { margin: 0; color: var(--amber); font-size: 13px; text-align: center; }
+.side-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.side-actions .btn { flex: 1 1 120px; min-height: 52px; font-size: 17px; }
+.side-actions #btnFull { flex: 1 1 100%; min-height: 40px; font-size: 14px; }
 
-.foot { display: flex; align-items: flex-end; gap: 12px; min-width: 0; }
-.pip { position: relative; flex: none; height: clamp(84px, 17vh, 200px); cursor: pointer; }
-.pip.off { position: fixed; left: 0; bottom: 0; width: 4px !important; height: 4px; opacity: 0.01; pointer-events: none; overflow: hidden; }
-.shotmap { flex: none; height: clamp(84px, 17vh, 200px); aspect-ratio: 1; max-width: 100%; border-radius: 10px; background: var(--surface); }
-.foot .spacer { flex: 1; }
-.foot .btn { min-height: 56px; font-size: 18px; padding: 10px 24px; }
-
-.flash { position: absolute; inset: 0; z-index: 9; pointer-events: none; background: var(--hit); opacity: 0; }
-.flash.go { animation: flash 0.42s ease-out; }
-@keyframes flash { from { opacity: 0.5; } to { opacity: 0; } }
-
-.result {
-  position: absolute; inset: 0; z-index: 10; cursor: pointer;
-  display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center;
-  padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-}
-.result[data-kind="clear"] { background: var(--hit); color: var(--hit-ink); }
-.result[data-kind="timeout"] { background: var(--miss-deep); color: var(--miss); }
-.result-title { font-family: var(--font-display); font-weight: 800; font-size: clamp(88px, 23vw, 320px); line-height: 0.88; letter-spacing: 0.02em; }
-.result-sub { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 4.2vw, 52px); font-variant-numeric: tabular-nums; }
-.result-hint { font-size: clamp(13px, 1.6vw, 17px); opacity: 0.8; }
-
-/* ---------- start card ---------- */
-.start {
-  position: fixed; inset: 0; z-index: 30; overflow: auto;
-  display: grid; place-items: center;
-  padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  background: var(--shade); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
-}
-.start-card {
-  width: min(560px, 100%); display: grid; gap: 18px;
-  padding: clamp(20px, 4vw, 32px); border-radius: 16px;
-  background: var(--surface); border: 1px solid var(--line);
-}
-.start-card h1 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: clamp(36px, 7vw, 52px); line-height: 1; text-wrap: balance; }
-.start-card h1 span { color: var(--hit); }
-.lead { margin: 0; color: var(--ink-2); font-size: 16px; }
-.howto { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; counter-reset: s; }
-.howto li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start; color: var(--ink-2); font-size: 14px; }
-.howto li::before {
-  counter-increment: s; content: counter(s);
-  width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--amber); color: var(--amber);
-  display: grid; place-items: center; font-family: var(--font-mono); font-size: 12px;
-}
-.start-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.start-actions .btn { flex: 1 1 160px; }
-.start-actions .btn-primary { flex-basis: 100%; min-height: 56px; font-size: 18px; }
-.start-note { margin: 0; font-size: 14px; color: var(--amber); }
-.start-note:empty { display: none; }
-
-/* ---------- setup sheet ---------- */
-.setup { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: grid; grid-template-rows: auto minmax(0, 1fr); }
+/* ---------- side: settings ---------- */
+.setup { min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
 .setup-bar {
-  display: flex; align-items: center; gap: 12px; padding-block: 10px;
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  background: var(--surface); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 12px; padding-block: 12px;
+  padding-left: 18px; padding-right: max(18px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line);
 }
 .setup-bar h2 { margin: 0; font-size: 18px; font-weight: 700; white-space: nowrap; }
 .setup-bar .btn-primary { margin-left: auto; }
-.setup-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(330px, 1fr); min-height: 0; }
-.stage-col { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; min-height: 0; padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; }
-.stage-slot { min-height: 0; display: grid; place-items: center; }
-.stage { position: relative; background: #000; border-radius: 12px; overflow: hidden; touch-action: none; }
-.pip .stage { border-radius: 8px; }
-.stage video, .stage canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
-.stage video { object-fit: fill; }
-.stage #overlay { inset: 0; width: 100%; height: 100%; }
-.pip .stage-msg { display: none; }
-.stage-msg {
-  position: absolute; left: 10px; right: 10px; bottom: 10px; margin: 0; padding: 8px 12px; border-radius: 8px;
-  background: var(--shade); color: var(--ink); font-size: 14px; pointer-events: none;
-}
-.legend { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--ink-2); font-size: 13px; }
-.legend span { display: inline-flex; align-items: center; gap: 7px; }
-.legend i { display: inline-block; width: 16px; height: 0; border-top: 3px solid var(--amber); border-radius: 2px; }
-.legend i.dash { border-top: 2px dashed var(--hit); }
-.legend i.dot { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--hit); }
-.legend i.x { width: 10px; height: 10px; border: 0; background: linear-gradient(45deg, transparent 42%, var(--miss) 42% 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, var(--miss) 42% 58%, transparent 58%); }
-
-.steps {
-  min-height: 0; overflow: auto; border-left: 1px solid var(--line);
-  padding-left: 20px; padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: 48px;
-}
+.steps { min-height: 0; overflow: auto; padding-left: 18px; padding-right: max(18px, env(safe-area-inset-right, 0px)); padding-bottom: 48px; }
 .step { display: grid; gap: 12px; padding-block: 18px; border-bottom: 1px solid var(--line); }
 .step h3 { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; }
 .step h3 .n {
   flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--amber); color: var(--amber);
   display: grid; place-items: center; font-family: var(--font-mono); font-size: 13px; font-weight: 700;
 }
+.adv { padding-block: 14px; border-bottom: 1px solid var(--line); }
+.adv summary { cursor: pointer; font-weight: 700; color: var(--ink-2); padding-block: 4px; }
+.adv[open] summary { margin-bottom: 12px; }
+.adv .body { display: grid; gap: 12px; }
 .hint { margin: 0; color: var(--ink-2); font-size: 14px; max-width: 62ch; }
 .hint b { color: var(--ink); font-weight: 600; }
-.field { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); }
-select, input[type="number"] {
+.hint a { color: var(--amber); }
+.field { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); }
+select, input[type="number"], textarea {
   width: 100%; min-height: 42px; padding: 6px 10px; border-radius: 8px;
   background: var(--surface-2); border: 1px solid var(--line); color: var(--ink);
 }
+textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
 input[type="range"] { width: 100%; accent-color: var(--amber); }
 .range-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .range-row output { flex: none; min-width: 4.5ch; text-align: right; font-family: var(--font-mono); font-size: 13px; color: var(--ink); }
@@ -259,8 +224,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
 .meter-fill.over { background: var(--hit); }
 .meter-thr { position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; background: var(--amber); }
 .meter-label { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-3); }
-.stats4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.stats4 div { display: grid; padding: 8px 10px; border-radius: 8px; background: var(--surface); min-width: 0; }
+.stats4 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.stats4 div { display: grid; padding: 8px 10px; border-radius: 8px; background: var(--bg); min-width: 0; }
 .stats4 span { font-size: 12px; color: var(--ink-2); }
 .stats4 b { font-family: var(--font-display); font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mono { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-3); overflow-wrap: anywhere; }
@@ -269,30 +234,56 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
 .log th, .log td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .log th { color: var(--ink-2); font-weight: 500; }
 .log td.ok { color: var(--hit); } .log td.no { color: var(--miss); }
-.copybox { width: 100%; min-height: 90px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; font-family: var(--font-mono); font-size: 12px; }
+.copybox { width: 100%; min-height: 90px; font-family: var(--font-mono); font-size: 12px; }
 
+/* ---------- overlays ---------- */
+.flash { position: fixed; inset: 0; z-index: 9; pointer-events: none; background: var(--hit); opacity: 0; }
+.flash.go { animation: flash 0.42s ease-out; }
+@keyframes flash { from { opacity: 0.45; } to { opacity: 0; } }
+.result {
+  position: fixed; inset: 0; z-index: 25; cursor: pointer;
+  display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center;
+  padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.result[data-kind="clear"] { background: var(--hit); color: var(--hit-ink); }
+.result[data-kind="timeout"] { background: var(--miss-deep); color: var(--miss); }
+.result-name { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 5.5vw, 72px); line-height: 1.05; }
+.result-title { font-family: var(--font-display); font-weight: 800; font-size: clamp(88px, 21vw, 300px); line-height: 0.88; letter-spacing: 0.02em; }
+.result-sub { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 4.2vw, 52px); font-variant-numeric: tabular-nums; }
+.result-hint { font-size: clamp(13px, 1.6vw, 17px); opacity: 0.8; }
+
+.start {
+  position: fixed; inset: 0; z-index: 30; overflow: auto; display: grid; place-items: center;
+  padding-block: 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--shade); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+.start-card { width: min(520px, 100%); display: grid; gap: 18px; padding: clamp(20px, 4vw, 32px); border-radius: 16px; background: var(--surface); border: 1px solid var(--line); }
+.start-card h1 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: clamp(36px, 7vw, 52px); line-height: 1; text-wrap: balance; }
+.start-card h1 span { color: var(--hit); }
+.lead { margin: 0; color: var(--ink-2); font-size: 16px; }
+.start-card .btn-primary { min-height: 60px; font-size: 20px; }
+.start-more { display: flex; flex-wrap: wrap; gap: 8px; }
+.start-more .btn { flex: 1 1 140px; min-height: 40px; font-size: 14px; }
+.start-note { margin: 0; font-size: 14px; color: var(--amber); }
+.start-note:empty { display: none; }
 .toast {
   position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
   z-index: 40; max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 10px;
   background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); font-size: 14px;
 }
 
-@media (max-width: 860px) {
-  .setup { display: block; overflow: auto; }
-  .setup-bar { position: sticky; top: 0; z-index: 2; }
-  .setup-grid { display: block; }
-  .stage-col { padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  .stage-slot { height: min(64vw, 52vh); }
-  .steps { overflow: visible; border-left: 0; padding-left: max(16px, env(safe-area-inset-left, 0px)); }
+/* portrait tablet / phone: view on top, side below */
+@media (max-width: 760px), (orientation: portrait) and (max-width: 1100px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 46%) minmax(0, 1fr); }
+  .side { border-left: 0; border-top: 1px solid var(--line); }
+  .board { gap: 10px; padding-block: 12px; grid-template-rows: auto auto minmax(80px, 1fr) auto auto; }
+  .clock .v { font-size: clamp(44px, 9vw, 80px); }
+  .shooter-name { font-size: clamp(26px, 6vw, 42px); }
 }
 @media (max-width: 520px) {
-  .brand, #btnFull { display: none; }
-  .pip, .shotmap { height: 96px; }
-  .foot { flex-wrap: wrap; }
-  .foot .spacer { display: none; }
-  .foot .btn { flex: 1 1 100%; min-height: 50px; }
   .field { grid-template-columns: 1fr; gap: 4px; }
-  .stats4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .side-actions .btn { min-height: 46px; font-size: 15px; }
+  #btnFull { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .flash.go { animation: none; opacity: 0.3; }
@@ -302,123 +293,92 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
 </style>
 </head>
 <body>
-<div id="app">
-  <main class="board" id="board">
-    <header class="topbar">
-      <span class="plate">사로 <b id="laneNo">1</b></span>
-      <span class="brand">LASER RUN · 레이저런 표적</span>
-      <span class="spacer"></span>
-      <div class="chips">
-        <span class="chip" id="chipSrc" data-state="idle"><i></i><span>입력 없음</span></span>
-        <span class="chip" id="chipTarget" data-state="idle"><i></i><span>과녁</span></span>
+<div id="app" class="app" data-mode="board">
+  <section class="view" aria-label="과녁 카메라">
+    <div class="stage-slot" id="stageSlot">
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted autoplay></video>
+        <canvas id="demoCanvas" hidden></canvas>
+        <canvas id="overlay"></canvas>
+        <p class="stage-msg" id="stageMsg" hidden></p>
       </div>
-      <button class="btn btn-quiet" id="btnFull" type="button">전체 화면</button>
-      <button class="btn" id="btnSetup" type="button">설정</button>
-    </header>
-
-    <section class="rail" aria-label="명중 표시등">
-      <div class="leds" id="leds" role="status" aria-live="polite"></div>
-      <p class="prompt" id="prompt">첫 발을 쏘면 시간이 시작돼요</p>
-    </section>
-
-    <section class="readouts">
-      <div class="readout"><span class="k">명중</span><span class="v"><span id="statHits">0</span><small>/<span id="statNeed">5</span></small></span></div>
-      <div class="readout"><span class="k">발사</span><span class="v" id="statShots">0</span></div>
-      <div class="readout"><span class="k">시간</span><span class="v" id="statTimeBox"><span id="statTime">0.0</span><small id="statLimit">초</small></span></div>
-    </section>
-
-    <footer class="foot">
-      <div class="pip" id="pipSlot" title="눌러서 설정 열기">
-        <div class="stage" id="stage">
-          <video id="video" playsinline muted autoplay></video>
-          <canvas id="demoCanvas" hidden></canvas>
-          <canvas id="overlay"></canvas>
-          <p class="stage-msg" id="stageMsg" hidden></p>
-        </div>
-      </div>
-      <canvas class="shotmap" id="shotMap" aria-label="이번 회차 탄착 위치"></canvas>
-      <span class="spacer"></span>
-      <button class="btn" id="btnReset" type="button">다시 시작</button>
-    </footer>
-
-    <div class="flash" id="flash"></div>
-    <div class="result" id="result" hidden role="alert">
-      <div class="result-title" id="resultTitle">CLEAR</div>
-      <div class="result-sub" id="resultSub"></div>
-      <div class="result-hint" id="resultHint"></div>
     </div>
-  </main>
+    <div class="view-bar">
+      <span><i></i>검정 원 테두리(7점 경계)</span>
+      <span><i class="dash"></i>명중 판정선(기준을 바꾼 경우)</span>
+      <span><i class="dot"></i>명중</span>
+      <span><i class="x"></i>빗나감</span>
+    </div>
+    <div class="view-note" id="viewNote" hidden><span id="viewNoteText">과녁(검정 원)을 찾는 중이에요…</span><button class="btn" id="btnNoteSetup" type="button" hidden>설정 모드</button></div>
+  </section>
 
-  <section class="setup" id="setup" hidden aria-label="표적 설정">
-    <header class="setup-bar">
-      <span class="plate">사로 <b id="setupLane">1</b></span>
-      <h2>표적 설정</h2>
-      <button class="btn btn-primary" id="btnToBoard" type="button">표적 화면으로</button>
-    </header>
-    <div class="setup-grid">
-      <div class="stage-col">
-        <div class="stage-slot" id="stageSlot"></div>
-        <div class="legend">
-          <span><i></i>검정 원 테두리(7점 경계)</span>
-          <span><i class="dash"></i>명중 판정선(기준을 바꾼 경우)</span>
-          <span><i class="dot"></i>명중</span>
-          <span><i class="x"></i>빗나감</span>
-          <button class="btn btn-quiet" id="btnZoom" type="button" aria-pressed="false" style="margin-left:auto;min-height:36px">과녁 크게 보기</button>
+  <aside class="side">
+    <div class="board" id="board">
+      <header class="side-top">
+        <span class="plate">사로 <b id="laneNo">1</b></span>
+        <div class="chips">
+          <span class="chip" id="chipSrc" data-state="idle"><i></i><span>입력 없음</span></span>
+          <span class="chip" id="chipTarget" data-state="idle"><i></i><span>과녁</span></span>
         </div>
-      </div>
+      </header>
 
+      <section class="shooter" aria-live="polite">
+        <span class="k">사수</span>
+        <div class="shooter-row">
+          <button class="nav-btn" id="btnPrevShooter" type="button" aria-label="이전 사수">‹</button>
+          <strong class="shooter-name" id="shooterName">사수 이름 없음</strong>
+          <button class="nav-btn" id="btnNextShooter" type="button" aria-label="다음 사수">›</button>
+        </div>
+        <span class="sub" id="shooterSub">설정 모드에서 사수 명단을 넣으면 순서대로 나와요</span>
+      </section>
+
+      <section class="leds-wrap" id="ledsWrap" aria-label="명중 표시등"><div class="leds" id="leds" role="status" aria-live="polite"></div></section>
+
+      <section class="clock">
+        <span class="k">사격 시간</span>
+        <span class="v" id="statTimeBox"><span id="statTime">0.0</span><small id="statLimit">초</small></span>
+        <span class="sub" id="statLine">명중 0/5 · 발사 0</span>
+        <p class="prompt" id="prompt">첫 발을 쏘면 시간이 시작돼요</p>
+        <p class="sound-hint" id="soundHint" hidden>소리가 꺼져 있어요 · 화면을 한 번 눌러 주세요</p>
+      </section>
+
+      <footer class="side-actions">
+        <button class="btn" id="btnReset" type="button">다시 시작</button>
+        <button class="btn" id="btnSetup" type="button">설정 모드</button>
+        <button class="btn btn-quiet" id="btnFull" type="button">전체 화면</button>
+      </footer>
+    </div>
+
+    <div class="setup" id="setup" hidden>
+      <header class="setup-bar">
+        <h2>설정 모드</h2>
+        <button class="btn btn-primary" id="btnToBoard" type="button">설정 끝내기</button>
+      </header>
       <div class="steps">
         <section class="step">
-          <h3><span class="n">1</span>영상 입력</h3>
-          <div class="seg" role="group" aria-label="영상 입력 방식">
-            <button type="button" data-src="camera" aria-pressed="false">카메라</button>
-            <button type="button" data-src="file" aria-pressed="false">영상 파일</button>
-            <button type="button" data-src="demo" aria-pressed="false">데모</button>
-          </div>
-          <input type="file" id="fileInput2" accept="video/*" hidden>
-          <p class="hint">태블릿 뒷면 카메라로 과녁을 비춰 주세요. 과녁 앞 1~2m, 레이저가 지나가는 길을 가리지 않는 <b>아래쪽</b>에 세우면 좋아요.</p>
-          <label class="field" id="rowCamera"><span>카메라</span><select id="selCamera"></select></label>
-          <label class="field" id="rowRes"><span>해상도</span>
-            <select id="selRes">
-              <option value="1280x720">1280×720 (권장)</option>
-              <option value="1920x1080">1920×1080 (먼 거리)</option>
-              <option value="640x480">640×480 (느린 기기)</option>
-            </select>
-          </label>
-          <div id="camControls" class="row" style="display:grid;gap:10px"></div>
-          <p class="mono" id="srcInfo">입력 없음</p>
-        </section>
-
-        <section class="step">
-          <h3><span class="n">2</span>과녁 맞추기</h3>
-          <p class="hint">노란 선이 종이 과녁의 <b>검정 원 테두리</b>와 겹치면 됩니다. 어긋나면 <b>직접 조정</b>을 누르고 가운데·끝 손잡이를 끌어 맞추세요.</p>
+          <h3><span class="n">1</span>과녁 맞추기</h3>
+          <p class="hint">왼쪽 화면의 노란 선이 종이 과녁의 <b>검정 원 테두리</b>와 겹치면 됩니다. 어긋나면 <b>직접 조정</b>을 누르고 가운데·끝 손잡이를 끌어 맞추세요.</p>
           <div class="row">
             <button class="btn" id="btnAuto" type="button">자동 인식</button>
             <button class="btn" id="btnEdit" type="button" aria-pressed="false">직접 조정</button>
+            <button class="btn btn-quiet" id="btnZoom" type="button" aria-pressed="false">과녁 크게 보기</button>
           </div>
           <label class="switch"><input type="checkbox" id="chkTrack">과녁이 조금 움직여도 따라가기</label>
           <p class="mono" id="calibInfo">아직 과녁을 찾지 않았어요</p>
           <p class="hint" id="printLinks" hidden>인쇄용 과녁:
-            <a href="target.html" target="_blank" rel="noopener" style="color:var(--amber);font-weight:600">크기 정해서 인쇄하기</a> ·
-            <a href="target-a4-59.5mm.pdf" target="_blank" rel="noopener" style="color:var(--amber)">59.5mm PDF</a> ·
-            <a href="target-a4-100mm.pdf" target="_blank" rel="noopener" style="color:var(--amber)">100mm PDF</a></p>
+            <a href="target.html" target="_blank" rel="noopener" style="font-weight:600">크기 정해서 인쇄하기</a> ·
+            <a href="target-a4-59.5mm.pdf" target="_blank" rel="noopener">59.5mm PDF</a> ·
+            <a href="target-a4-100mm.pdf" target="_blank" rel="noopener">100mm PDF</a></p>
         </section>
 
         <section class="step">
-          <h3><span class="n">3</span>레이저 시험</h3>
-          <p class="hint">검정 원과 흰 부분에 몇 발씩 쏴 보세요. 쏜 자리에 초록 점(명중)이나 빨간 ×(빗나감)가 생기면 정상이에요. 데모에서는 화면을 누르면 그 자리에 쏩니다.</p>
+          <h3><span class="n">2</span>레이저 시험</h3>
+          <p class="hint">설정 모드에서 쏜 것은 기록에 들어가지 않아요. 검정 원과 흰 부분에 몇 발씩 쏴서 초록 점(명중)·빨간 ×(빗나감)가 생기는지 보세요.</p>
           <div class="field"><span>감도</span><div class="range-row"><input type="range" id="rngSens" min="1" max="10" step="1"><output id="outSens">6</output></div></div>
           <div>
             <div class="meter" aria-hidden="true"><div class="meter-fill" id="meterFill"></div><div class="meter-thr"></div></div>
             <div class="meter-label"><span>빛 신호</span><span>노란 선을 넘으면 감지</span></div>
           </div>
-          <label class="field"><span>레이저 색</span>
-            <select id="selColor">
-              <option value="red">빨강</option>
-              <option value="green">초록</option>
-              <option value="bright">모든 밝은 빛</option>
-            </select>
-          </label>
           <div class="stats4">
             <div><span>감지</span><b id="testCount">0</b></div>
             <div><span>명중</span><b id="testHits">0</b></div>
@@ -427,12 +387,15 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           </div>
           <p class="mono" id="testSig">마지막 발의 신호 세기가 여기에 나와요.</p>
           <div class="row"><button class="btn btn-quiet" id="btnTestClear" type="button">시험 기록 지우기</button></div>
-          <p class="hint">안 잡히면 감도를 올리고, 쏘지 않았는데 잡히면 감도를 내리세요. 야외에서는 과녁에 <b>그늘(차양)</b>을 만들면 인식이 훨씬 좋아져요.</p>
+          <p class="hint">안 잡히면 감도를 올리고, 쏘지 않았는데 잡히면 내리세요. 야외에서는 과녁에 <b>그늘(차양)</b>을 만들면 훨씬 잘 잡혀요.</p>
         </section>
 
         <section class="step">
-          <h3><span class="n">4</span>경기 규칙</h3>
+          <h3><span class="n">3</span>사수 · 경기</h3>
           <label class="field"><span>사로 번호</span><input type="number" id="numLane" min="1" max="99" inputmode="numeric"></label>
+          <div class="field" style="align-items:start"><span>사수 명단</span>
+            <textarea id="txtRoster" placeholder="한 줄에 한 명씩&#10;예) 3-2 김민준&#10;3-2 이서연" aria-label="사수 명단"></textarea></div>
+          <label class="switch"><input type="checkbox" id="chkAutoNext">CLEAR 뒤 다음 사수로 넘어가기</label>
           <label class="field"><span>목표 명중</span><select id="selNeed"></select></label>
           <label class="field"><span>명중 기준</span>
             <select id="selMinScore">
@@ -464,14 +427,13 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           </label>
           <label class="switch"><input type="checkbox" id="chkSound">명중·클리어 소리</label>
           <label class="switch"><input type="checkbox" id="chkMissSound">빗나감 소리</label>
-          <label class="switch"><input type="checkbox" id="chkPip">표적 화면에 카메라 작게 보기</label>
         </section>
 
         <section class="step">
           <h3>기록</h3>
           <div class="log-wrap">
             <table class="log">
-              <thead><tr><th>시각</th><th>사로</th><th>결과</th><th>시간</th><th>명중/발사</th></tr></thead>
+              <thead><tr><th>시각</th><th>사수</th><th>결과</th><th>시간</th><th>명중/발사</th></tr></thead>
               <tbody id="logBody"></tbody>
             </table>
           </div>
@@ -481,27 +443,59 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
           </div>
           <textarea class="copybox" id="copyBox" readonly hidden aria-label="복사할 기록"></textarea>
         </section>
+
+        <details class="adv">
+          <summary>고급 설정 · 카메라와 입력</summary>
+          <div class="body">
+            <div class="seg" role="group" aria-label="영상 입력 방식">
+              <button type="button" data-src="camera" aria-pressed="false">카메라</button>
+              <button type="button" data-src="file" aria-pressed="false">영상 파일</button>
+              <button type="button" data-src="demo" aria-pressed="false">데모</button>
+            </div>
+            <input type="file" id="fileInput2" accept="video/*" hidden>
+            <label class="field" id="rowCamera"><span>카메라</span><select id="selCamera"></select></label>
+            <label class="field" id="rowRes"><span>해상도</span>
+              <select id="selRes">
+                <option value="1280x720">1280×720 (권장)</option>
+                <option value="1920x1080">1920×1080 (먼 거리)</option>
+                <option value="640x480">640×480 (느린 기기)</option>
+              </select>
+            </label>
+            <div id="camControls" style="display:grid;gap:10px"></div>
+            <label class="field"><span>레이저 색</span>
+              <select id="selColor">
+                <option value="red">빨강</option>
+                <option value="green">초록</option>
+                <option value="bright">모든 밝은 빛</option>
+              </select>
+            </label>
+            <p class="mono" id="srcInfo">입력 없음</p>
+          </div>
+        </details>
       </div>
     </div>
-  </section>
+  </aside>
+
+  <div class="flash" id="flash"></div>
+  <div class="result" id="result" hidden role="alert">
+    <div class="result-name" id="resultName"></div>
+    <div class="result-title" id="resultTitle">CLEAR</div>
+    <div class="result-sub" id="resultSub"></div>
+    <div class="result-hint" id="resultHint"></div>
+  </div>
 
   <section class="start" id="start" aria-label="시작">
     <div class="start-card">
       <h1>레이저런 <span>표적</span></h1>
-      <p class="lead">태블릿 카메라로 종이 과녁을 비추면, 레이저가 검정 원(7점 이상)에 맞을 때마다 초록불이 켜져요. 5발을 모두 맞히면 CLEAR.</p>
-      <ol class="howto">
-        <li>과녁 앞 1~2m, 레이저 길을 가리지 않는 아래쪽에 태블릿을 세워요.</li>
-        <li>카메라를 켜면 검정 원을 자동으로 찾아요. 어긋나면 손으로 맞춰요.</li>
-        <li>몇 발 시험해 본 뒤 표적 화면으로 넘어가면 준비 끝.</li>
-      </ol>
-      <div class="start-actions">
-        <button class="btn btn-primary" id="btnStartCamera" type="button">카메라로 시작</button>
-        <label class="btn" for="fileInput">영상 파일로 시험</label>
-        <button class="btn" id="btnStartDemo" type="button">데모 보기</button>
+      <p class="lead">태블릿을 과녁 앞 아래쪽에 세우고 시작을 누르세요. 과녁은 자동으로 찾아요. 조정할 게 있으면 오른쪽 아래 <b>설정 모드</b>를 누르면 돼요.</p>
+      <button class="btn btn-primary" id="btnStartCamera" type="button">시작하기</button>
+      <div class="start-more">
+        <button class="btn btn-quiet" id="btnStartDemo" type="button">데모 보기</button>
+        <label class="btn btn-quiet" for="fileInput">영상 파일로 시험</label>
       </div>
       <input type="file" id="fileInput" accept="video/*" hidden>
       <p class="start-note" id="startNote"></p>
-      <p class="hint" id="previewNote" hidden>이 화면은 claude.ai 미리보기라 카메라가 막혀 있어요. 데모를 보거나, 태블릿으로 찍은 사격 영상을 올려 인식이 되는지 시험할 수 있어요. 수업에서는 https 주소에 올린 버전을 쓰세요.</p>
+      <p class="hint" id="previewNote" hidden>이 화면은 claude.ai 미리보기라 카메라가 막혀 있어요. 데모를 보거나, 태블릿으로 찍은 사격 영상을 올려 인식이 되는지 시험할 수 있어요. 수업에서는 홈페이지 주소로 쓰세요.</p>
     </div>
   </section>
 
@@ -519,7 +513,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   const DEFAULTS = {
     lane: 1, hitsNeeded: 5, minScore: 7, tolerance: 0, timeLimit: 0, resetDelay: 5,
     sensitivity: 6, laserColor: 'red', minInterval: 250, sound: true, missSound: false,
-    showPip: true, procSize: 480, autoTrack: true, deviceId: '', resolution: '1280x720',
+    procSize: 480, autoTrack: true, deviceId: '', resolution: '1280x720', roster: '', autoNext: true, shooterIdx: 0,
   };
   const store = {
     get(k, d) { try { const v = localStorage.getItem('laserrun.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -1117,6 +1111,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   let srcKind = null, stream = null, track = null, fileURL = null, demo = null;
   let calib = null, roi = null, mode = 'board', attract = true, editMode = false, drag = null, setupZoom = false;
   const view = { s: 1, ox: 0, oy: 0, key: '' }; // source px -> stage CSS px
+  let autoCalFailed = false, shooterOverride = '', stageFill = false;
   let loopToken = 0, autoTimer = 0, trackFails = 0, trackRuns = 0, lastTrack = 0, lastSeenT = -1e9, meterVal = 0;
   const detector = new LaserDetector();
   const tracker = new ShotTracker(handleShot);
@@ -1207,7 +1202,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       const saved = store.get('calib', null);
       if (saved && saved.w === sw && saved.h === sh && saved.a > 0 && saved.b > 0) calib = Object.assign({}, saved);
     }
-    roi = null; trackFails = 0; detector.reset(); tracker.reset(); perf.startAt = performance.now();
+    roi = null; trackFails = 0; autoCalFailed = false; detector.reset(); tracker.reset(); perf.startAt = performance.now();
     syncSourceUI(); fitStage(); updateChips(); updateCalibInfo();
     startLoop();
     if (!calib) scheduleAutoCalib(0);
@@ -1216,7 +1211,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     clearTimeout(autoTimer);
     autoTimer = setTimeout(() => {
       if (calib || !srcKind) return;
-      if (!autoCalibrate(true) && attempt < 8) scheduleAutoCalib(attempt + 1);
+      if (autoCalibrate(true)) { autoCalFailed = false; return; }
+      if (attempt < 8) scheduleAutoCalib(attempt + 1); else autoCalFailed = true;
     }, attempt === 0 ? 700 : 1100);
   }
   async function listCameras() {
@@ -1392,7 +1388,30 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   function shotPayload(ev) {
     return { hit: ev.hit, score: ev.score, rho: ev.rho == null ? null : +ev.rho.toFixed(3), x: +ev.ux.toFixed(3), y: +ev.uy.toFixed(3), frames: ev.frames };
   }
-  const seriesPayload = () => ({ hits: game.hits, shots: game.shots, need: S.hitsNeeded, elapsedMs: Math.round((game.tEnd || performance.now()) - (game.t0 || performance.now())) });
+  const seriesPayload = () => ({ hits: game.hits, shots: game.shots, need: S.hitsNeeded, shooter: currentShooter(), elapsedMs: Math.round((game.tEnd || performance.now()) - (game.t0 || performance.now())) });
+
+  /* ---------- shooter roster: one name per line, shown in order, next one after each CLEAR ---------- */
+  const rosterList = () => String(S.roster || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  function currentShooter() {
+    if (shooterOverride) return shooterOverride;
+    const l = rosterList();
+    return l.length ? l[clamp(S.shooterIdx || 0, 0, l.length - 1)] : '';
+  }
+  function renderShooter() {
+    const l = rosterList(), i = clamp(S.shooterIdx || 0, 0, Math.max(0, l.length - 1)), name = currentShooter();
+    const el = $('shooterName');
+    el.textContent = name || '사수 이름 없음'; el.classList.toggle('empty', !name);
+    $('shooterSub').textContent = shooterOverride ? '연동된 시스템에서 받은 이름'
+      : l.length ? `${i + 1}번째 / ${l.length}명 · ${l[i + 1] ? '다음 ' + l[i + 1] : '마지막 사수'}`
+      : '설정 모드에서 사수 명단을 넣으면 순서대로 나와요';
+    $('btnPrevShooter').disabled = !!shooterOverride || !l.length || i <= 0;
+    $('btnNextShooter').disabled = !!shooterOverride || !l.length || i >= l.length - 1;
+  }
+  function moveShooter(d) {
+    const l = rosterList();
+    if (!l.length) return;
+    S.shooterIdx = clamp((S.shooterIdx || 0) + d, 0, l.length - 1); saveSettings(); renderShooter();
+  }
 
   function handleShot(blob, t, frames) {
     const ev = { t, x: blob.x, y: blob.y, frames, rho: null, score: null, hit: false, ux: 0, uy: 0, tier: blob.tier || 'A', z: blob.z || 0 };
@@ -1418,16 +1437,17 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     if (game.phase === 'ready') { game.phase = 'running'; game.t0 = ev.t; emit('start', {}); }
     game.shots++; game.list.push(ev);
     if (ev.hit) { game.hits++; flash(); Sound.hit(); } else if (S.missSound) Sound.miss();
-    renderLEDs(ev.hit ? game.hits - 1 : -1); renderStats(); drawShotMap();
+    renderLEDs(ev.hit ? game.hits - 1 : -1); renderStats();
     emit('shot', { shot: shotPayload(ev), series: seriesPayload() });
     if (game.hits >= S.hitsNeeded) finish('clear', ev.t);
   }
   function finish(kind, t) {
     game.phase = kind; game.tEnd = t;
+    game.advance = !attract && S.autoNext && !shooterOverride && rosterList().length > 0;
     if (kind === 'clear') Sound.clear(); else Sound.timeout();
     showResult(kind);
     if (!attract) {
-      log.unshift({ at: Date.now(), lane: S.lane, result: kind, time: +((game.tEnd - game.t0) / 1000).toFixed(1), hits: game.hits, shots: game.shots, src: srcKind });
+      log.unshift({ at: Date.now(), lane: S.lane, name: currentShooter(), result: kind, time: +((game.tEnd - game.t0) / 1000).toFixed(1), hits: game.hits, shots: game.shots, src: srcKind });
       if (log.length > 300) log.length = 300;
       store.set('log', log); renderLog();
     }
@@ -1438,9 +1458,11 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   }
   function gameReset(silent) {
     clearTimeout(game.timer);
-    Object.assign(game, { phase: 'ready', hits: 0, shots: 0, t0: 0, tEnd: 0, list: [], resetAt: 0 });
+    const advance = game.advance;
+    Object.assign(game, { phase: 'ready', hits: 0, shots: 0, t0: 0, tEnd: 0, list: [], resetAt: 0, advance: false });
     $('result').hidden = true;
-    renderLEDs(-1); renderStats(); drawShotMap();
+    if (advance) moveShooter(1);
+    renderLEDs(-1); renderStats();
     if (!silent) emit('reset', {});
   }
   function tickGame(t) {
@@ -1461,9 +1483,21 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     const box = $('leds'), n = S.hitsNeeded;
     box.innerHTML = '';
     for (let i = 0; i < n; i++) { const d = document.createElement('div'); d.className = 'led'; d.innerHTML = `<span class="led-num">${i + 1}</span>`; box.appendChild(d); }
-    const vw = 86 / (n + 0.18 * (n - 1));
-    document.documentElement.style.setProperty('--led-size', `min(${vw.toFixed(2)}vw, 30vh, 210px)`);
-    renderLEDs(-1);
+    layoutLEDs(); renderLEDs(-1);
+  }
+  // biggest LEDs that fit the side column: try every column count, keep the one with the largest lights
+  function layoutLEDs() {
+    const wrap = $('ledsWrap'), box = $('leds'), n = S.hitsNeeded, W = wrap.clientWidth, H = wrap.clientHeight;
+    if (W < 20 || H < 20) return;
+    let best = { s: 0, cols: n };
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols);
+      const sz = Math.min(W / (cols + 0.22 * (cols - 1)), H / (rows + 0.22 * (rows - 1)));
+      if (sz > best.s + 1) best = { s: sz, cols };
+    }
+    const sz = Math.floor(Math.min(best.s * 0.96, 170));
+    box.style.setProperty('--led-size', sz + 'px');
+    box.style.width = Math.ceil(best.cols * sz + (best.cols - 1) * sz * 0.22 + 1) + 'px';
   }
   function renderLEDs(pop) {
     const leds = $('leds').children;
@@ -1472,14 +1506,15 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     $('leds').setAttribute('aria-label', `명중 ${game.hits} / ${S.hitsNeeded}`);
   }
   function renderStats() {
-    $('statHits').textContent = game.hits; $('statNeed').textContent = S.hitsNeeded; $('statShots').textContent = game.shots;
+    $('statLine').textContent = `명중 ${game.hits}/${S.hitsNeeded} · 발사 ${game.shots}`;
     $('statLimit').textContent = S.timeLimit > 0 ? `/${S.timeLimit}초` : '초';
-    $('laneNo').textContent = S.lane; $('setupLane').textContent = S.lane;
+    $('laneNo').textContent = S.lane;
   }
   function showResult(kind) {
     const el = $('result'); el.dataset.kind = kind; el.hidden = false;
     const secs = ((game.tEnd - game.t0) / 1000).toFixed(1);
     $('resultTitle').textContent = kind === 'clear' ? 'CLEAR' : 'TIME';
+    $('resultName').textContent = currentShooter();
     $('resultSub').textContent = kind === 'clear' ? `${secs}초 · ${game.shots}발 중 ${game.hits}발 명중` : `${S.timeLimit}초 종료 · ${game.shots}발 중 ${game.hits}발 명중`;
   }
   function flash() {
@@ -1523,40 +1558,15 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     if (!log.length) { body.innerHTML = '<tr><td colspan="5" style="color:var(--ink-3)">아직 기록이 없어요. 5발을 다 맞히거나 시간이 끝나면 여기에 쌓여요.</td></tr>'; return; }
     for (const r of log.slice(0, 60)) {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${fmtClock(r.at)}</td><td>${r.lane}</td><td class="${r.result === 'clear' ? 'ok' : 'no'}">${r.result === 'clear' ? 'CLEAR' : '시간 초과'}</td><td>${r.time.toFixed(1)}초</td><td>${r.hits}/${r.shots}</td>`;
+      tr.innerHTML = `<td>${fmtClock(r.at)}</td><td></td><td class="${r.result === 'clear' ? 'ok' : 'no'}">${r.result === 'clear' ? 'CLEAR' : '시간 초과'}</td><td>${r.time.toFixed(1)}초</td><td>${r.hits}/${r.shots}</td>`;
+      tr.children[1].textContent = r.name || '-';
       body.appendChild(tr);
     }
   }
   function logCSV() {
-    const rows = [['date', 'time', 'lane', 'result', 'seconds', 'hits', 'shots']];
-    for (const r of log) { const d = new Date(r.at); rows.push([d.toISOString().slice(0, 10), fmtClock(r.at), r.lane, r.result, r.time, r.hits, r.shots]); }
+    const rows = [['date', 'time', 'lane', 'name', 'result', 'seconds', 'hits', 'shots']];
+    for (const r of log) { const d = new Date(r.at); rows.push([d.toISOString().slice(0, 10), fmtClock(r.at), r.lane, '"' + String(r.name || '').replace(/"/g, '""') + '"', r.result, r.time, r.hits, r.shots]); }
     return rows.map((r) => r.join(',')).join('\n');
-  }
-
-  function drawShotMap() {
-    const cv = $('shotMap'), r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
-    const W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
-    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
-    const g = cv.getContext('2d'); g.clearRect(0, 0, W, H);
-    const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 / 2.62;
-    g.fillStyle = tokens.paper; g.beginPath(); g.arc(cx, cy, R * 2.5, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#060908'; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill();
-    g.lineWidth = Math.max(1, dpr * 0.8);
-    for (let n = 1; n <= 10; n++) {
-      if (n === 7) continue;
-      g.strokeStyle = n > 7 ? '#3d4541' : tokens['paper-line'];
-      g.beginPath(); g.arc(cx, cy, (R * (11 - n)) / 4, 0, Math.PI * 2); g.stroke();
-    }
-    const hr = hitRho();
-    if (Math.abs(hr - 1) > 1e-3) { g.setLineDash([5 * dpr, 4 * dpr]); g.strokeStyle = tokens.hit; g.lineWidth = 1.5 * dpr; g.beginPath(); g.arc(cx, cy, R * hr, 0, Math.PI * 2); g.stroke(); g.setLineDash([]); }
-    const dot = Math.max(3 * dpr, R * 0.13);
-    game.list.forEach((s) => {
-      const rr = Math.min(Math.hypot(s.ux, s.uy), 2.55), ang = Math.atan2(s.uy, s.ux);
-      const x = cx + Math.cos(ang) * rr * R, y = cy + Math.sin(ang) * rr * R;
-      g.beginPath(); g.arc(x, y, dot, 0, Math.PI * 2);
-      g.fillStyle = s.hit ? tokens.hit : tokens.miss; g.fill();
-      g.lineWidth = dpr; g.strokeStyle = '#000'; g.stroke();
-    });
   }
 
   function ellipsePath(g, e, r) { g.beginPath(); g.ellipse(e.cx, e.cy, Math.max(0.1, e.a * r), Math.max(0.1, e.b * r), e.theta, 0, Math.PI * 2); }
@@ -1602,12 +1612,12 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
         }
       }
     }
-    const life = full ? 20000 : 9000;
-    for (const s of recent) {
+    const life = 20000, shots = full ? recent : game.list;
+    for (const s of shots) {
       const age = t - s.t;
-      if (age > life || age < 0) continue;
-      const al = age < life - 1500 ? 1 : (life - age) / 1500;
-      const rr = (full ? 9 : 7) * u;
+      if (full && (age > life || age < 0)) continue;
+      const al = !full || age < life - 1500 ? 1 : (life - age) / 1500;
+      const rr = (full ? 9 : 11) * u;
       g.lineWidth = 2.5 * u;
       if (!calib || s.hit) {
         g.strokeStyle = rgba(calib ? tokens.hit : tokens.amber, al); g.fillStyle = rgba(calib ? tokens.hit : tokens.amber, al * 0.35);
@@ -1623,7 +1633,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     }
   }
 
-  // The small inset (and setup, on request) zooms in on the target: the paper is often small in the frame.
+  // The board view (and setup, on request) zooms in on the target: the paper is often small in the frame.
   function computeView() {
     if (drag) return;
     const [sw, sh] = srcSize(), W = stage.clientWidth, H = stage.clientHeight;
@@ -1643,32 +1653,34 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
   function fitStage() {
     const [sw, sh] = srcSize(), ar = sw && sh ? sw / sh : 16 / 9, slot = stage.parentElement;
     if (!slot) return;
-    if (slot.id === 'pipSlot') {
-      slot.classList.toggle('off', !S.showPip);
-      const h = S.showPip ? slot.clientHeight || 120 : 4, w = Math.max(4, Math.round(h * ar));
-      stage.style.width = w + 'px'; stage.style.height = h + 'px'; slot.style.width = w + 'px';
-    } else {
-      const r = slot.getBoundingClientRect();
-      let w = r.width, h = w / ar;
-      if (h > r.height && r.height > 60) { h = r.height; w = h * ar; }
-      stage.style.width = Math.floor(w) + 'px'; stage.style.height = Math.floor(h) + 'px';
-    }
+    const r = slot.getBoundingClientRect();
+    let w = r.width, h = w / ar;
+    if (h > r.height && r.height > 60) { h = r.height; w = h * ar; }
+    stageFill = mode === 'board' && !!calib;
+    if (stageFill && r.height > 60) { w = r.width; h = r.height; } // main screen: the zoomed target uses the whole left area
+    stage.style.width = Math.floor(w) + 'px'; stage.style.height = Math.floor(h) + 'px';
     view.key = ''; computeView();
   }
   function resumeVideo() { if (srcKind && srcKind !== 'demo' && video.paused) video.play().catch(() => {}); }
   function openSetup() {
-    mode = 'setup'; $('setup').hidden = false;
-    $('stageSlot').appendChild(stage); resumeVideo();
+    mode = 'setup'; $('app').dataset.mode = 'setup';
+    $('board').hidden = true; $('setup').hidden = false; resumeVideo();
     requestAnimationFrame(fitStage);
     renderTest(); updateCalibInfo(); syncControls(); syncSourceUI(); renderLog();
   }
   function closeSetup() {
-    mode = 'board'; editMode = false; $('btnEdit').setAttribute('aria-pressed', 'false');
-    $('setup').hidden = true; $('copyBox').hidden = true;
-    $('pipSlot').appendChild(stage); resumeVideo();
-    requestAnimationFrame(() => { fitStage(); drawShotMap(); });
-    gameReset(true);
-    if (srcKind && srcKind !== 'demo' && !calib) toast('과녁이 아직 설정되지 않았어요', 3000);
+    mode = 'board'; $('app').dataset.mode = 'board'; editMode = false; $('btnEdit').setAttribute('aria-pressed', 'false');
+    $('setup').hidden = true; $('board').hidden = false; $('copyBox').hidden = true; resumeVideo();
+    requestAnimationFrame(() => { fitStage(); layoutLEDs(); });
+    gameReset(true); renderShooter();
+    if (srcKind && srcKind !== 'demo' && !calib) toast('과녁이 아직 맞춰지지 않았어요', 3000);
+  }
+  function updateViewNote() {
+    const show = mode === 'board' && !attract && srcKind && srcKind !== 'demo' && !calib;
+    $('viewNote').hidden = !show;
+    if (!show) return;
+    $('viewNoteText').textContent = autoCalFailed ? '과녁을 못 찾았어요. 설정 모드에서 맞춰 주세요.' : '과녁(검정 원)을 찾는 중이에요…';
+    $('btnNoteSetup').hidden = !autoCalFailed;
   }
 
   /* ================= pointer: manual target fit + demo shooting ================= */
@@ -1685,7 +1697,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     return best;
   }
   stage.addEventListener('pointerdown', (e) => {
-    if (mode !== 'setup') { openSetup(); return; }
+    if (mode !== 'setup') { const q = evToSrc(e); if (q && srcKind === 'demo' && demo) demo.shootAt(q.x, q.y); return; }
     const p = evToSrc(e);
     if (!p) return;
     if (editMode) {
@@ -1733,7 +1745,8 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     $('rngTol').value = S.tolerance; $('outTol').textContent = (S.tolerance > 0 ? '+' : '') + S.tolerance + '%';
     $('selLimit').value = String(S.timeLimit); if ($('selLimit').value !== String(S.timeLimit)) addOption($('selLimit'), S.timeLimit, S.timeLimit + '초');
     $('selReset').value = String(S.resetDelay); $('selNeed').value = String(S.hitsNeeded);
-    $('chkSound').checked = !!S.sound; $('chkMissSound').checked = !!S.missSound; $('chkPip').checked = !!S.showPip;
+    $('chkSound').checked = !!S.sound; $('chkMissSound').checked = !!S.missSound; $('chkAutoNext').checked = !!S.autoNext;
+    if (document.activeElement !== $('txtRoster')) $('txtRoster').value = S.roster || '';
     $('selRes').value = S.resolution;
   }
   function addOption(sel, v, label) { const o = document.createElement('option'); o.value = String(v); o.textContent = label; sel.appendChild(o); sel.value = String(v); }
@@ -1750,7 +1763,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     S.minScore = clamp(Math.round(S.minScore), 1, 10); S.lane = clamp(Math.round(S.lane), 1, 99);
     saveSettings(); detector.configure(S.sensitivity, S.laserColor);
     if ($('leds').children.length !== S.hitsNeeded) { buildLEDs(); gameReset(true); }
-    renderStats(); syncControls(); drawShotMap(); fitStage();
+    renderStats(); syncControls(); renderShooter(); fitStage();
   }
   function bindControls() {
     const sn = $('selNeed');
@@ -1767,7 +1780,11 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     $('selReset').addEventListener('change', (e) => set('resetDelay', +e.target.value));
     $('chkSound').addEventListener('change', (e) => set('sound', e.target.checked));
     $('chkMissSound').addEventListener('change', (e) => set('missSound', e.target.checked));
-    $('chkPip').addEventListener('change', (e) => set('showPip', e.target.checked));
+    $('chkAutoNext').addEventListener('change', (e) => set('autoNext', e.target.checked));
+    $('txtRoster').addEventListener('change', (e) => { S.shooterIdx = 0; set('roster', e.target.value); });
+    $('btnPrevShooter').addEventListener('click', () => moveShooter(-1));
+    $('btnNextShooter').addEventListener('click', () => moveShooter(1));
+    $('btnNoteSetup').addEventListener('click', openSetup);
     $('selRes').addEventListener('change', (e) => { set('resolution', e.target.value); if (srcKind === 'camera') useCamera().catch((err) => toast(cameraErrorText(err), 5000)); });
     $('selCamera').addEventListener('change', (e) => { set('deviceId', e.target.value); store.set('calib', null); useCamera().catch((err) => toast(cameraErrorText(err), 5000)); });
     document.querySelectorAll('.seg [data-src]').forEach((b) => b.addEventListener('click', () => {
@@ -1806,7 +1823,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     $('fileInput').addEventListener('change', async (e) => {
       const f = e.target.files && e.target.files[0]; e.target.value = '';
       if (!f) return;
-      attract = false; $('start').hidden = true; await useFile(f); gameReset(true); openSetup();
+      attract = false; $('start').hidden = true; await useFile(f); gameReset(true);
     });
   }
   function toggleEdit(on) {
@@ -1820,8 +1837,7 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       await useCamera();
       attract = false; $('start').hidden = true; $('startNote').textContent = '';
       gameReset(true); keepAwake();
-      if (calib) toast('저장된 과녁 위치를 불러왔어요. 레이저 시험 후 표적 화면으로 넘어가세요.', 3500);
-      openSetup();
+      if (calib) toast('저장된 과녁 위치를 불러왔어요', 2500);
     } catch (err) {
       $('startNote').textContent = cameraErrorText(err);
       if (!srcKind) useDemo();
@@ -1874,17 +1890,19 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     try { if (bc) bc.postMessage(msg); } catch (e) { /* ignore */ }
   }
   function getState() {
-    return { phase: game.phase, hits: game.hits, shots: game.shots, need: S.hitsNeeded, elapsedMs: game.t0 ? Math.round((game.tEnd || performance.now()) - game.t0) : 0, lane: S.lane, input: srcKind, calibrated: !!calib };
+    return { phase: game.phase, hits: game.hits, shots: game.shots, need: S.hitsNeeded, shooter: currentShooter(), elapsedMs: game.t0 ? Math.round((game.tEnd || performance.now()) - game.t0) : 0, lane: S.lane, input: srcKind, calibrated: !!calib };
   }
   function handleCommand(m) {
     if (!m || typeof m !== 'object' || m.target !== 'laser-target') return;
     if (m.cmd === 'reset') gameReset();
     else if (m.cmd === 'config') applySettings(m.settings);
     else if (m.cmd === 'state') emit('state', { state: getState() });
+    else if (m.cmd === 'shooter') { shooterOverride = typeof m.name === 'string' ? m.name.slice(0, 40) : ''; renderShooter(); }
   }
   window.addEventListener('message', (e) => handleCommand(e.data));
   window.LaserTarget = {
-    version: '0.1.0',
+    version: '0.3.0',
+    setShooter(name) { shooterOverride = name ? String(name).slice(0, 40) : ''; renderShooter(); },
     on(type, fn) { (listeners[type] = listeners[type] || []).push(fn); return () => window.LaserTarget.off(type, fn); },
     off(type, fn) { const a = listeners[type]; if (a) { const i = a.indexOf(fn); if (i >= 0) a.splice(i, 1); } },
     reset: () => gameReset(),
@@ -1912,7 +1930,9 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
       if (stage.isConnected && stage.offsetWidth > 6) drawOverlay(t);
       if (mode === 'setup') renderMeter();
       if (t - (uiLoop.info || 0) > 500) {
-        uiLoop.info = t; updateChips();
+        uiLoop.info = t; updateChips(); updateViewNote();
+        if (stageFill !== (mode === 'board' && !!calib)) fitStage();
+        $('soundHint').hidden = !(S.sound && !attract && srcKind && (!Sound.ctx || Sound.ctx.state !== 'running'));
         if (mode === 'setup') {
           const [sw, sh] = srcSize();
           const fr = track && track.getSettings ? track.getSettings().frameRate : null;
@@ -1926,15 +1946,19 @@ input[type="range"] { width: 100%; accent-color: var(--amber); }
     if (!window.LT_STANDALONE) $('previewNote').hidden = false;
     else $('printLinks').hidden = false;
     readTokens(); detector.configure(S.sensitivity, S.laserColor);
-    bindControls(); buildLEDs(); syncControls(); renderStats(); renderLog(); renderTest();
+    bindControls(); buildLEDs(); syncControls(); renderStats(); renderShooter(); renderLog(); renderTest();
     useDemo();
     requestAnimationFrame(uiLoop);
-    window.addEventListener('resize', () => { fitStage(); drawShotMap(); });
+    window.addEventListener('resize', () => { fitStage(); layoutLEDs(); });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { keepAwake(); resumeVideo(); } });
     document.addEventListener('pointerdown', () => Sound.unlock(), { capture: true });
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { readTokens(); drawShotMap(); fitStage(); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { readTokens(); fitStage(); layoutLEDs(); });
     if (urlAutostart === 'camera') startWithCamera();
     else if (urlAutostart === 'demo') { attract = false; $('start').hidden = true; }
+    else if (window.LT_STANDALONE && navigator.permissions && navigator.permissions.query) {
+      // camera already allowed for this site: skip the start card and go straight to the target screen
+      navigator.permissions.query({ name: 'camera' }).then((r) => { if (r.state === 'granted' && attract) startWithCamera(); }).catch(() => {});
+    }
   }
   boot();
 })();

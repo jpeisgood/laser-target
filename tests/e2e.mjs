@@ -34,6 +34,7 @@ await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 await page.goto(url);
 if (sens) await page.evaluate((s) => window.LaserTarget.configure({ sensitivity: s }), sens);
 await page.click('#btnStartCamera');
+await page.evaluate(() => window.LaserTarget._dbg.openSetup()); // phase 1 runs as test shots in settings mode
 await page.waitForFunction(() => window.LaserTarget._dbg.calib, null, { timeout: 20000 });
 const startAt = await page.evaluate(() => window.LaserTarget._dbg.perf.startAt);
 const calibAt = await page.evaluate(() => performance.now());
